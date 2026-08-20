@@ -12,7 +12,8 @@ public class PlayerController : MonoBehaviour
     public float gravity = -9.81f;
 
     [Header("Посилання")]
-    public Animator animator; // перетягніть сюди Animator з мешу персонажа
+    public Animator animator;
+    public Transform cameraTransform; // перетягни сюди Main Camera
 
     private CharacterController controller;
     private Vector3 velocity;
@@ -23,15 +24,16 @@ public class PlayerController : MonoBehaviour
         controller = GetComponent<CharacterController>();
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
+        if (cameraTransform == null && Camera.main != null)
+            cameraTransform = Camera.main.transform;
     }
 
     void Update()
     {
         isGrounded = controller.isGrounded;
         if (isGrounded && velocity.y < 0)
-            velocity.y = -2f; // невеликий притиск до землі
+            velocity.y = -2f;
 
-        // Ввід руху
         float h = Input.GetAxis("Horizontal");
         float v = Input.GetAxis("Vertical");
         bool isRunning = Input.GetKey(KeyCode.LeftShift);
@@ -39,28 +41,31 @@ public class PlayerController : MonoBehaviour
 
         Vector3 inputDir = new Vector3(h, 0f, v).normalized;
 
-        if (inputDir.magnitude >= 0.1f)
+        if (inputDir.magnitude >= 0.1f && cameraTransform != null)
         {
             float speed = isRunning ? runSpeed : walkSpeed;
 
-            // Персонаж рухається відносно напрямку камери, але САМ НІКОЛИ НЕ РОЗВЕРТАЄТЬСЯ.
-            // W - вперед, S - назад (спиною), A/D - боком. Орієнтація тіла не змінюється рухом.
-            Quaternion camFacing = Quaternion.Euler(0f, Camera.main.transform.eulerAngles.y, 0f);
-            Vector3 moveDir = camFacing * inputDir;
+            // Напрямок руху рахуємо від камери (без Y компоненти), а не від тіла
+            Vector3 camForward = cameraTransform.forward;
+            camForward.y = 0f;
+            camForward.Normalize();
+
+            Vector3 camRight = cameraTransform.right;
+            camRight.y = 0f;
+            camRight.Normalize();
+
+            Vector3 moveDir = camRight * inputDir.x + camForward * inputDir.z;
             controller.Move(moveDir.normalized * speed * Time.deltaTime);
         }
 
-        // Стрибок
         if (jumpPressed && isGrounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
-        // Гравітація
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
 
-        // Керування анімаціями
         UpdateAnimator(inputDir.magnitude, isRunning, jumpPressed);
     }
 
