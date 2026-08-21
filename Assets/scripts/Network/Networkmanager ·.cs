@@ -12,6 +12,11 @@ using UnityEngine;
 // 2. Створи порожній GameObject у сцені, назви його "NetworkManager",
 //    і додай на нього цей скрипт.
 // 3. У полі Player Prefab Name встав точну назву префабу з Resources.
+//
+// ВАЖЛИВО: переконайся, що в сцені є ТІЛЬКИ ОДИН об'єкт з цим скриптом —
+// два NetworkManager в сцені викликають OnJoinedRoom двічі і спавнять
+// два персонажі на одного гравця (звідси "клон", що падає, і ефект
+// "чую сам себе" через голос).
 
 public class NetworkManager : MonoBehaviourPunCallbacks
 {
@@ -37,14 +42,33 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     {
         Debug.Log($"Зайшов у кімнату '{roomName}'. Гравців у кімнаті: {PhotonNetwork.CurrentRoom.PlayerCount}");
 
+        // Захист від подвійного спавну: якщо гравець вже заспавнений
+        // (наприклад, через реконект або через випадковий подвійний виклик
+        // цього колбеку), другий Instantiate пропускається.
+        if (PhotonNetwork.LocalPlayer.TagObject != null)
+        {
+            Debug.LogWarning("Гравець вже заспавнений для цього актора — пропускаю повторний Instantiate.");
+            return;
+        }
+
         // Спавнимо гравця в довільній точці (0,0,0) — заміни на свою точку спавну
         Vector3 spawnPosition = new Vector3(0f, 0f, 0f);
-        PhotonNetwork.Instantiate(playerPrefabName, spawnPosition, Quaternion.identity);
+        GameObject player = PhotonNetwork.Instantiate(playerPrefabName, spawnPosition, Quaternion.identity);
+
+        // Позначаємо, що для цього гравця вже є заспавнений об'єкт
+        PhotonNetwork.LocalPlayer.TagObject = player;
+    }
+
+    public override void OnLeftRoom()
+    {
+        // Скидаємо мітку, щоб при повторному вході в кімнату спавн знову спрацював
+        PhotonNetwork.LocalPlayer.TagObject = null;
     }
 
     public override void OnDisconnected(DisconnectCause cause)
     {
         Debug.LogWarning($"Відключено від Photon. Причина: {cause}");
+        PhotonNetwork.LocalPlayer.TagObject = null;
     }
 
     public override void OnJoinRoomFailed(short returnCode, string message)

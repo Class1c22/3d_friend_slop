@@ -1546,10 +1546,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VoiceLevelVisualizer
   targetRenderer: {fileID: 6957182761314260733}
   silentTexture: {fileID: 2800000, guid: af1c5d7e1d600cc48aef95e8f6dac36d, type: 3}
-  normalTexture: {fileID: 2800000, guid: 1d900d4c01685e14ab0fb6901acd1a8a, type: 3}
-  loudTexture: {fileID: 2800000, guid: 379a902e303762d42af47042c9fd5f65, type: 3}
+  normalTexture: {fileID: 2800000, guid: e4c302ef65fbf65498b32342c6faaea3, type: 3}
+  loudTexture: {fileID: 2800000, guid: 1d900d4c01685e14ab0fb6901acd1a8a, type: 3}
   silentThreshold: 0.01
-  loudThreshold: 0.15
+  loudThreshold: 0.03
   smoothing: 8
 --- !u!1 &9021625063688383859
 GameObject:
