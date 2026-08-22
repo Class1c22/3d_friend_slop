@@ -438,7 +438,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa09cd94f978ddf4b98aef9ba72ae645, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HandAnimatorController
-  handAnimator: {fileID: 665848168}
+  handAnimator: {fileID: 0}
   moveThreshold: 0.1
 --- !u!1 &742433922
 GameObject:
@@ -632,6 +632,7 @@ GameObject:
   - component: {fileID: 1547044999}
   - component: {fileID: 1547044998}
   - component: {fileID: 1547044997}
+  - component: {fileID: 1547045002}
   m_Layer: 6
   m_Name: Cube (1)
   m_TagString: Untagged
@@ -745,6 +746,33 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!54 &1547045002
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1547044996}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!1 &1669798093
 GameObject:
   m_ObjectHideFlags: 0
@@ -805,7 +833,7 @@ Camera:
     height: 1
   near clip plane: 0.3
   far clip plane: 1000
-  field of view: 60
+  field of view: 80
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -892,7 +920,9 @@ MonoBehaviour:
   pickupableLayer:
     serializedVersion: 2
     m_Bits: 64
-  handAnimatorController: {fileID: 0}
+  handAnimatorController: {fileID: 665848169}
+  throwForwardForce: 6
+  throwUpwardForce: 2
 --- !u!1001 &7596420801383183115
 PrefabInstance:
   m_ObjectHideFlags: 0
