@@ -28,14 +28,10 @@ public class HandAnimatorController : MonoBehaviour
         bool isMoving = speed > moveThreshold;
         handAnimator.SetBool("IsMoving", isMoving);
 
-        // --- Приклад: підняти/відпустити предмет по клавіші E ---
-        // IsHolding вмикається один раз при підборі і лишається true,
-        // поки предмет не відпустили - тому Grab-поза триматиметься і під час ходьби.
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            isHolding = !isHolding; // перемикач: взяти / відпустити
-            handAnimator.SetBool("IsHolding", isHolding);
-        }
+        // Керування IsHolding відбувається ЛИШЕ через SetHolding(),
+        // який викликає PlayerPickup при фактичному підборі/викиданні предмета.
+        // Тут більше немає власної обробки клавіші E - інакше стан аніматора
+        // розсинхронізовується з тим, чи предмет справді в руках.
     }
 
     // Викликайте це з іншого скрипта (напр. системи підбору предметів),
