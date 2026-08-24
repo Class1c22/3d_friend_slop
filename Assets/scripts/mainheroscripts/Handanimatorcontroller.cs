@@ -8,8 +8,23 @@ public class HandAnimatorController : MonoBehaviour
     [Tooltip("Швидкість, вище якої вважаємо що персонаж рухається")]
     public float moveThreshold = 0.1f;
 
+    [Tooltip("Швидкість, вище якої вмикається пришвидшений біг (runfaster)")]
+    public float sprintThreshold = 5f;
+
+    [Tooltip("Множник швидкості при утриманні клавіші бігу (Left Shift)")]
+    public float sprintMultiplier = 2f;
+
+    [Tooltip("Клавіша для стрибка")]
+    public KeyCode jumpKey = KeyCode.Space;
+
     // Чи тримає персонаж зараз предмет у руках
     private bool isHolding = false;
+
+    // Чи триває зараз стрибок - не дає повторно тригерити анімацію в повітрі
+    private bool isJumping = false;
+
+    // Чи стоїть персонаж на землі - оновлюється ззовні з PlayerController.SetGrounded()
+    private bool isGrounded = true;
 
     void Awake()
     {
@@ -25,8 +40,28 @@ public class HandAnimatorController : MonoBehaviour
         float vertical = Input.GetAxis("Vertical");
         float speed = new Vector2(horizontal, vertical).magnitude;
 
+        // Якщо затиснутий Shift - вважаємо це спринтом і збільшуємо швидкість
+        bool isSprinting = Input.GetKey(KeyCode.LeftShift) && speed > moveThreshold;
+        if (isSprinting)
+            speed *= sprintMultiplier;
+
         bool isMoving = speed > moveThreshold;
         handAnimator.SetBool("IsMoving", isMoving);
+
+        // Параметр speed використовується в контролері для переходів
+        // між Armature|run та Armature_runfaster (за умовою Greater/Less)
+        handAnimator.SetFloat("speed", speed);
+
+        // --- Стрибок ---
+        // ВАЖЛИВО: назва параметра в Animator Controller - "jump" (з малої літери),
+        // тому рядок нижче має точно співпадати з назвою в контролері!
+        // Стрибок дозволений лише стоячи на землі - так само, як в PlayerController.
+        if (Input.GetKeyDown(jumpKey) && !isJumping && isGrounded)
+        {
+            isJumping = true;
+            handAnimator.SetBool("isJumping", isJumping);
+            handAnimator.SetTrigger("jump");
+        }
 
         // Керування IsHolding відбувається ЛИШЕ через SetHolding(),
         // який викликає PlayerPickup при фактичному підборі/викиданні предмета.
@@ -40,5 +75,26 @@ public class HandAnimatorController : MonoBehaviour
     {
         isHolding = holding;
         handAnimator.SetBool("IsHolding", isHolding);
+    }
+
+    // Викликайте це з PlayerController кожен кадр (або хоча б при зміні стану),
+    // щоб руки знали, стоїть персонаж на землі чи ні - так само, як isGrounded
+    // в PlayerController. Це і дозволяє стрибку скидатись і повторюватись.
+    public void SetGrounded(bool grounded)
+    {
+        bool wasGrounded = isGrounded;
+        isGrounded = grounded;
+        handAnimator.SetBool("isGrounded", isGrounded);
+
+        // Щойно приземлились - скидаємо прапорець стрибка, щоб можна було стрибнути знову
+        if (isGrounded && !wasGrounded)
+            SetJumpFinished();
+    }
+
+    // Скидає прапорець стрибка вручну, якщо потрібно окремо від SetGrounded
+    public void SetJumpFinished()
+    {
+        isJumping = false;
+        handAnimator.SetBool("isJumping", isJumping);
     }
 }
