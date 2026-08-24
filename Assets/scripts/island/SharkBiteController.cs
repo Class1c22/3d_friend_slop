@@ -3,6 +3,7 @@ using UnityEngine;
 public class SharkBiteController : MonoBehaviour
 {
     public HeightmapIsland island;
+    public SharkController shark; // якщо не задано - укуси відбуваються миттєво, без анімації
 
     [Header("Таймінг")]
     public float totalDurationSeconds = 300f;
@@ -51,6 +52,20 @@ public class SharkBiteController : MonoBehaviour
         );
 
         float radius = Random.Range(biteRadiusMin, biteRadiusMax);
-        island.BiteAt(bitePos, radius, biteDepthBelowSea, biteDuration);
+
+        if (shark != null)
+        {
+            // Акула підпливає, програє анімацію Bite, і саме в момент "змикання щелеп"
+            // фактично провалюється шматок острова
+            shark.PerformBite(
+                bitePos,
+                () => island.BiteAt(bitePos, radius, biteDepthBelowSea, biteDuration),
+                biteDuration
+            );
+        }
+        else
+        {
+            island.BiteAt(bitePos, radius, biteDepthBelowSea, biteDuration);
+        }
     }
 }

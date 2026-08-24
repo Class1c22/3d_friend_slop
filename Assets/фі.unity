@@ -339,6 +339,7 @@ GameObject:
   - component: {fileID: 213364759}
   - component: {fileID: 213364758}
   - component: {fileID: 213364757}
+  - component: {fileID: 213364761}
   m_Layer: 0
   m_Name: Plane
   m_TagString: Untagged
@@ -440,6 +441,28 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!95 &213364761
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 213364756}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: be87c39a4aa922544a2ec9c93b313b18, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &235087197
 GameObject:
   m_ObjectHideFlags: 0
@@ -470,6 +493,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SharkBiteController
   island: {fileID: 195999932}
+  shark: {fileID: 0}
   totalDurationSeconds: 50
   totalBites: 25
   biteRadiusMin: 6
@@ -491,6 +515,81 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &406322209
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2030714653}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 24.574507
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 24.574507
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 24.574507
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -1.7
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -4.39
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 11.78
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      propertyPath: m_Name
+      value: shark
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1233821095}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1233821096}
+  m_SourcePrefab: {fileID: 100100000, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
 --- !u!1 &435100972 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 58bb55811b259a543852de29f2a6c813, type: 3}
@@ -550,6 +649,7 @@ GameObject:
   m_Component:
   - component: {fileID: 742433924}
   - component: {fileID: 742433923}
+  - component: {fileID: 742433925}
   m_Layer: 0
   m_Name: Directional Light
   m_TagString: Untagged
@@ -631,17 +731,101 @@ Transform:
   m_GameObject: {fileID: 742433922}
   serializedVersion: 2
   m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
-  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalPosition: {x: -5.62, y: 3, z: -3.24}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+--- !u!114 &742433925
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 742433922}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_CustomShadowLayers: 0
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_ShadowRenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_Version: 4
+  m_LightLayerMask: 1
+  m_ShadowLayerMask: 1
+  m_RenderingLayers: 1
+  m_ShadowRenderingLayers: 1
 --- !u!4 &1152215285 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1948718442710148406, guid: 619d7a86d9ea0374b8367cd14978c16d, type: 3}
   m_PrefabInstance: {fileID: 7596420801383183115}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1233821092 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+  m_PrefabInstance: {fileID: 406322209}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &1233821093 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 02895507dd4fe5046b0c99014681593f, type: 3}
+  m_PrefabInstance: {fileID: 406322209}
+  m_PrefabAsset: {fileID: 0}
+--- !u!95 &1233821095
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1233821092}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: be87c39a4aa922544a2ec9c93b313b18, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1233821096
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1233821092}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62d3a15301a00f24eb4983fd4fb0181b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SharkController
+  island: {fileID: 195999936}
+  patrolRadius: 60
+  patrolHeight: 20
+  patrolSpeed: 15
+  patrolBobAmplitude: 0.5
+  patrolBobSpeed: 1
+  approachSpeed: 20
+  biteApproachDistance: 3
+  rotateSpeed: 5
+  biteTriggerName: Bite
+  biteImpactFraction: 0.4
 --- !u!1 &1515308341
 GameObject:
   m_ObjectHideFlags: 0
@@ -1003,6 +1187,61 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!1 &2030714652
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2030714653}
+  - component: {fileID: 2030714655}
+  m_Layer: 0
+  m_Name: shark
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2030714653
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2030714652}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 5.99, y: 16.84, z: 8.41}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1233821093}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!95 &2030714655
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2030714652}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: be87c39a4aa922544a2ec9c93b313b18, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &2082424358 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 8802907338886786584, guid: 619d7a86d9ea0374b8367cd14978c16d, type: 3}
@@ -1448,3 +1687,4 @@ SceneRoots:
   - {fileID: 195999936}
   - {fileID: 235087199}
   - {fileID: 213364760}
+  - {fileID: 2030714653}
