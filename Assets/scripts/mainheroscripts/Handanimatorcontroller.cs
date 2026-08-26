@@ -20,6 +20,9 @@ public class HandAnimatorController : MonoBehaviour
     // Чи тримає персонаж зараз предмет у руках
     private bool isHolding = false;
 
+    // Чи тримає персонаж зараз саме вудку (утримує позу риболовлі)
+    private bool isFishingEquipped = false;
+
     // Чи триває зараз стрибок - не дає повторно тригерити анімацію в повітрі
     private bool isJumping = false;
 
@@ -96,5 +99,24 @@ public class HandAnimatorController : MonoBehaviour
     {
         isJumping = false;
         handAnimator.SetBool("isJumping", isJumping);
+    }
+
+    // Викликається ззовні (PlayerPickup) одразу після підбору предмета,
+    // якщо для цього предмета задана окрема анімація "взяти в руки"
+    // (наприклад EquipRod для вудки). Якщо triggerName пустий - нічого не робить,
+    // і тоді предмет просто прикріплюється без додаткової анімації.
+    public void PlayEquipAnimation(string triggerName)
+    {
+        if (string.IsNullOrEmpty(triggerName)) return;
+        handAnimator.SetTrigger(triggerName);
+    }
+
+    // Тримає (або знімає) стан "вудка в руках" - Animator лишається
+    // в позі риболовлі (Armature|fishing), поки цей Bool == true,
+    // і виходить з неї лише коли стає false (при викиданні вудки).
+    public void SetFishingEquipped(bool equipped)
+    {
+        isFishingEquipped = equipped;
+        handAnimator.SetBool("IsFishingEquipped", isFishingEquipped);
     }
 }

@@ -8,6 +8,20 @@ public class Pickupable : MonoBehaviour
     [Tooltip("Чи зараз предмет у руках гравця")]
     public bool isHeld = false;
 
+    [Header("Індивідуальне кріплення в руці (необов'язково)")]
+    [Tooltip("Якщо задано - предмет кріпиться саме сюди замість загальної точки руки гравця (напр. окреме місце для вудки). Для звичайних предметів лишити пустим.")]
+    public Transform customAttachPoint;
+
+    [Tooltip("Локалье зміщення позиції відносно точки кріплення (щоб предмет ліг у руку під потрібним кутом/зсувом)")]
+    public Vector3 attachPositionOffset = Vector3.zero;
+
+    [Tooltip("Локальне зміщення повороту відносно точки кріплення, в градусах")]
+    public Vector3 attachRotationOffset = Vector3.zero;
+
+    [Header("Анімація взяття в руки (необов'язково)")]
+    [Tooltip("Назва Trigger-параметра в Animator рук, який зіграє при підборі цього предмета. Пусто = без окремої анімації (звичайний IsHolding, як раніше).")]
+    public string equipAnimTrigger;
+
     // Зберігаємо оригінальні налаштування фізики, щоб повернути при викиданні
     private Rigidbody rb;
     private Collider col;
@@ -33,10 +47,12 @@ public class Pickupable : MonoBehaviour
         if (col != null)
             col.enabled = false;
 
-        // "Телепортуємо" в руку: робимо дочірнім об'єктом точки прикріплення
+        // "Телепортуємо" в руку: робимо дочірнім об'єктом точки прикріплення.
+        // Якщо для предмета задані власні offset'и (напр. вудка має лежати не рівно
+        // по нулях, а під кутом) - використовуємо їх, інакше поведінка як і раніше (нулі).
         transform.SetParent(handAttachPoint);
-        transform.localPosition = Vector3.zero;
-        transform.localRotation = Quaternion.identity;
+        transform.localPosition = attachPositionOffset;
+        transform.localRotation = Quaternion.Euler(attachRotationOffset);
     }
 
     public void Drop(Vector3 dropWorldPosition, Vector3 throwVelocity = default)

@@ -3,7 +3,7 @@ using UnityEngine;
 // Повісити на персонажа гравця (mainhero_animated).
 public class PlayerPickup : MonoBehaviour
 {
-    [Tooltip("Точка в руці, куди буде 'телепортуватись' предмет (порожній GameObject у долоні)")]
+    [Tooltip("Точка в руці, куди буде 'телепортуватись' предмет за замовчуванням (порожній GameObject у долоні). Використовується, якщо у предмета не задано власну customAttachPoint.")]
     public Transform handAttachPoint;
 
     [Tooltip("Радіус, у якому можна підняти предмет")]
@@ -12,8 +12,11 @@ public class PlayerPickup : MonoBehaviour
     [Tooltip("Шар, на якому знаходяться предмети для підбору (щоб не чіплялись зайві об'єкти)")]
     public LayerMask pickupableLayer;
 
-    [Tooltip("Посилання на контролер анімацій рук - щоб вмикати/вимикати IsHolding")]
+    [Tooltip("Посилання на контролер анімацій рук - щоб вмикати/вимикати IsHolding, грати анімацію взяття в руки та тримати позу риболовлі")]
     public HandAnimatorController handAnimatorController;
+
+    [Tooltip("Назва Equip Anim Trigger, яка означає саме вудку (має співпадати з полем Equip Anim Trigger на об'єкті вудки)")]
+    public string fishingRodTriggerName = "EquipRod";
 
     [Tooltip("Сила кидка вперед")]
     public float throwForwardForce = 6f;
@@ -59,11 +62,27 @@ public class PlayerPickup : MonoBehaviour
 
         if (closest != null)
         {
-            closest.PickUp(handAttachPoint);
+            // Якщо у предмета задана власна точка кріплення (напр. окреме місце
+            // для вудки) - використовуємо саме її, інакше - загальна точка руки.
+            Transform attachTarget = closest.customAttachPoint != null
+                ? closest.customAttachPoint
+                : handAttachPoint;
+
+            closest.PickUp(attachTarget);
             currentlyHeld = closest;
 
             if (handAnimatorController != null)
+            {
                 handAnimatorController.SetHolding(true);
+
+                // Якщо для цього предмета задана окрема анімація "взяти в руки" -
+                // програємо саме її (напр. EquipRod для вудки).
+                handAnimatorController.PlayEquipAnimation(closest.equipAnimTrigger);
+
+                // Якщо взяли саме вудку - тримаємо позу риболовлі, поки вудка в руках.
+                bool isFishingRod = closest.equipAnimTrigger == fishingRodTriggerName;
+                handAnimatorController.SetFishingEquipped(isFishingRod);
+            }
         }
     }
 
@@ -76,9 +95,16 @@ public class PlayerPickup : MonoBehaviour
         Vector3 throwVelocity = -transform.forward * throwForwardForce + Vector3.up * throwUpwardForce;
 
         currentlyHeld.Drop(throwStartPos, throwVelocity);
-        currentlyHeld = null;
 
         if (handAnimatorController != null)
+        {
             handAnimatorController.SetHolding(false);
+
+            // Виходимо з пози риболовлі незалежно від того, що саме кидали -
+            // якщо це була не вудка, прапорець і так вже був false.
+            handAnimatorController.SetFishingEquipped(false);
+        }
+
+        currentlyHeld = null;
     }
 }
