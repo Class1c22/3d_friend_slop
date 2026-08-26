@@ -2017,6 +2017,7 @@ MonoBehaviour:
   gravity: -9.81
   animator: {fileID: 3036071077932927395}
   cameraTransform: {fileID: 0}
+  handAnimatorController: {fileID: 0}
 --- !u!95 &3036071077932927395
 Animator:
   serializedVersion: 7
