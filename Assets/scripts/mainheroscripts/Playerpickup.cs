@@ -28,6 +28,9 @@ public class PlayerPickup : MonoBehaviour
     public float throwUpwardForce = 2f;
 
     private Pickupable currentlyHeld = null;
+    /// <summary>Чи саме вудка зараз в руках гравця (для FishingController).</summary>
+    public bool IsHoldingFishingRod =>
+        currentlyHeld != null && currentlyHeld.equipAnimTrigger == fishingRodTriggerName;
 
     void Awake()
     {
@@ -99,6 +102,7 @@ public class PlayerPickup : MonoBehaviour
             EquipItem(closest);
         }
     }
+    
 
     /// <summary>Викликається InventoryManager, коли треба показати конкретний предмет у руці.</summary>
     private void HandleEquip(Pickupable item)
