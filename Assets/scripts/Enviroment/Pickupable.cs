@@ -5,8 +5,12 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public class Pickupable : MonoBehaviour
 {
-    [Tooltip("Чи зараз предмет у руках гравця")]
+    [Tooltip("Чи зараз предмет належить гравцю (в руці АБО в інвентарі, не в світі)")]
     public bool isHeld = false;
+
+    [Header("Іконка для слота інвентаря")]
+    [Tooltip("Показується в InventoryManager, коли предмет лежить у слоті")]
+    public Sprite icon;
 
     [Header("Індивідуальне кріплення в руці (необов'язково)")]
     [Tooltip("Якщо задано - предмет кріпиться саме сюди замість загальної точки руки гравця (напр. окреме місце для вудки). Для звичайних предметів лишити пустим.")]
@@ -32,8 +36,12 @@ public class Pickupable : MonoBehaviour
         col = GetComponent<Collider>();
     }
 
+    /// <summary>
+    /// Фізично прикріплює предмет до руки (те, що бачить гравець в руках).
+    /// </summary>
     public void PickUp(Transform handAttachPoint)
     {
+        gameObject.SetActive(true); // на випадок якщо предмет лежав "схований" в інвентарі (Store())
         isHeld = true;
 
         // Вимикаємо фізику, поки предмет в руці
@@ -55,8 +63,35 @@ public class Pickupable : MonoBehaviour
         transform.localRotation = Quaternion.Euler(attachRotationOffset);
     }
 
+    /// <summary>
+    /// "Ховає" предмет, поки він лежить в інвентарі, але не в руці:
+    /// вимикає рендер/колайдер і від'єднує від руки. Гравець досі ним володіє (isHeld = true),
+    /// просто зараз тримає в руці щось інше (або нічого).
+    /// </summary>
+    public void Store()
+    {
+        isHeld = true;
+
+        transform.SetParent(null);
+
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+            rb.linearVelocity = Vector3.zero;
+        }
+
+        if (col != null)
+            col.enabled = false;
+
+        gameObject.SetActive(false);
+    }
+
+    /// <summary>
+    /// Повертає предмет у світ (викидання). Знімає isHeld повністю - предмет знову підбирабельний.
+    /// </summary>
     public void Drop(Vector3 dropWorldPosition, Vector3 throwVelocity = default)
     {
+        gameObject.SetActive(true); // якщо викидаємо прямо зі "схованого" стану інвентаря
         isHeld = false;
 
         transform.SetParent(null);

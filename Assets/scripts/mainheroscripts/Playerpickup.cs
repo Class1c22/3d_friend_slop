@@ -15,6 +15,9 @@ public class PlayerPickup : MonoBehaviour
     [Tooltip("Посилання на контролер анімацій рук - щоб вмикати/вимикати IsHolding, грати анімацію взяття в руки та тримати позу риболовлі")]
     public HandAnimatorController handAnimatorController;
 
+    [Tooltip("Посилання на інвентар. Якщо не задано - предмети підбираються напряму в руку по-старому, без слотів.")]
+    public InventoryManager inventoryManager;
+
     [Tooltip("Назва Equip Anim Trigger, яка означає саме вудку (має співпадати з полем Equip Anim Trigger на об'єкті вудки)")]
     public string fishingRodTriggerName = "EquipRod";
 
@@ -26,17 +29,31 @@ public class PlayerPickup : MonoBehaviour
 
     private Pickupable currentlyHeld = null;
 
+    void Awake()
+    {
+        if (inventoryManager != null)
+        {
+            inventoryManager.OnEquip += HandleEquip;
+            inventoryManager.OnUnequip += HandleUnequip;
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (inventoryManager != null)
+        {
+            inventoryManager.OnEquip -= HandleEquip;
+            inventoryManager.OnUnequip -= HandleUnequip;
+        }
+    }
+
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.E) && currentlyHeld == null)
-        {
+        if (Input.GetKeyDown(KeyCode.E))
             TryPickUpNearby();
-        }
 
         if (Input.GetKeyDown(KeyCode.R) && currentlyHeld != null)
-        {
             ThrowCurrent();
-        }
     }
 
     void TryPickUpNearby()
@@ -60,29 +77,76 @@ public class PlayerPickup : MonoBehaviour
             }
         }
 
-        if (closest != null)
+        if (closest == null) return;
+
+        if (inventoryManager != null)
         {
-            // Якщо у предмета задана власна точка кріплення (напр. окреме місце
-            // для вудки) - використовуємо саме її, інакше - загальна точка руки.
-            Transform attachTarget = closest.customAttachPoint != null
-                ? closest.customAttachPoint
-                : handAttachPoint;
-
-            closest.PickUp(attachTarget);
-            currentlyHeld = closest;
-
-            if (handAnimatorController != null)
+            if (!inventoryManager.HasFreeSlot())
             {
-                handAnimatorController.SetHolding(true);
-
-                // Якщо для цього предмета задана окрема анімація "взяти в руки" -
-                // програємо саме її (напр. EquipRod для вудки).
-                handAnimatorController.PlayEquipAnimation(closest.equipAnimTrigger);
-
-                // Якщо взяли саме вудку - тримаємо позу риболовлі, поки вудка в руках.
-                bool isFishingRod = closest.equipAnimTrigger == fishingRodTriggerName;
-                handAnimatorController.SetFishingEquipped(isFishingRod);
+                Debug.Log("[PlayerPickup] Інвентар повний - неможливо підняти предмет.");
+                return;
             }
+
+            // Ховаємо предмет за замовчуванням (він тепер "в інвентарі").
+            // Якщо руки зараз порожні - AddItem одразу викличе OnEquip -> HandleEquip,
+            // і той самий кадр покаже предмет у руці (перекриє щойно виконаний Store()).
+            closest.Store();
+            inventoryManager.AddItem(closest);
+        }
+        else
+        {
+            // Фолбек, якщо InventoryManager не призначений - стара поведінка "напряму в руку"
+            EquipItem(closest);
+        }
+    }
+
+    /// <summary>Викликається InventoryManager, коли треба показати конкретний предмет у руці.</summary>
+    private void HandleEquip(Pickupable item)
+    {
+        if (currentlyHeld == item) return;
+
+        // Попередній предмет лишається в інвентарі, просто ховаємо його з руки
+        if (currentlyHeld != null)
+            currentlyHeld.Store();
+
+        EquipItem(item);
+    }
+
+    /// <summary>Викликається InventoryManager, коли обрано пустий слот / знято виділення.</summary>
+    private void HandleUnequip()
+    {
+        if (currentlyHeld != null)
+            currentlyHeld.Store();
+
+        currentlyHeld = null;
+
+        if (handAnimatorController != null)
+        {
+            handAnimatorController.SetHolding(false);
+            handAnimatorController.SetFishingEquipped(false);
+        }
+    }
+
+    private void EquipItem(Pickupable item)
+    {
+        Transform attachTarget = item.customAttachPoint != null
+            ? item.customAttachPoint
+            : handAttachPoint;
+
+        item.PickUp(attachTarget);
+        currentlyHeld = item;
+
+        if (handAnimatorController != null)
+        {
+            handAnimatorController.SetHolding(true);
+
+            // Якщо для цього предмета задана окрема анімація "взяти в руки" -
+            // програємо саме її (напр. EquipRod для вудки).
+            handAnimatorController.PlayEquipAnimation(item.equipAnimTrigger);
+
+            // Якщо взяли саме вудку - тримаємо позу риболовлі, поки вудка в руках.
+            bool isFishingRod = item.equipAnimTrigger == fishingRodTriggerName;
+            handAnimatorController.SetFishingEquipped(isFishingRod);
         }
     }
 
@@ -90,21 +154,21 @@ public class PlayerPickup : MonoBehaviour
     {
         if (currentlyHeld == null) return;
 
-        // Стартова точка кидка - трохи попереду гравця, щоб предмет не застряг у тілі
         Vector3 throwStartPos = transform.position - transform.forward * 1f + Vector3.up * 1f;
         Vector3 throwVelocity = -transform.forward * throwForwardForce + Vector3.up * throwUpwardForce;
 
-        currentlyHeld.Drop(throwStartPos, throwVelocity);
+        Pickupable thrown = currentlyHeld;
+
+        if (inventoryManager != null)
+            inventoryManager.RemoveItem(thrown); // прибирає зі слота і викличе HandleUnequip
+
+        thrown.Drop(throwStartPos, throwVelocity);
+        currentlyHeld = null;
 
         if (handAnimatorController != null)
         {
             handAnimatorController.SetHolding(false);
-
-            // Виходимо з пози риболовлі незалежно від того, що саме кидали -
-            // якщо це була не вудка, прапорець і так вже був false.
             handAnimatorController.SetFishingEquipped(false);
         }
-
-        currentlyHeld = null;
     }
 }
