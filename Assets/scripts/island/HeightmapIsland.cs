@@ -19,6 +19,22 @@ public class HeightmapIsland : MonoBehaviour
     [Header("Вода")]
     public float seaLevel = 0f;
 
+    // Стріляє одразу після того, як меш острова згенеровано і MeshCollider оновлено.
+    // Підписуйся сюди в скриптах, яким потрібна готова поверхня (спавн пальм, риби тощо),
+    // щоб не залежати від порядку виконання Start() між різними скриптами.
+    public event System.Action OnIslandGenerated;
+
+    // Ефективний радіус острова (враховує islandRadius == -1 як "worldSize/2 за замовчуванням").
+    // Зручний шорткат для скриптів типу PalmSpawner, яким потрібне те саме значення,
+    // що вже використовується всередині GenerateMesh().
+    public float EffectiveRadius => islandRadius > 0f ? islandRadius : worldSize / 2f;
+
+    // Стріляє одразу в момент укусу (BiteAt), ДО того як ямка встигне провалитись -
+    // передає світові координати центру укусу і його радіус. Підписуйся сюди, якщо
+    // треба відреагувати на конкретне місце укусу (напр. PalmSpawner прибирає пальми,
+    // що опинились в радіусі укусу, синхронно з провалом ґрунту).
+    public event System.Action<Vector3, float> OnBite;
+
     private Mesh mesh;
     private Vector3[] vertices;
     private int topVertCount;
@@ -151,6 +167,10 @@ public class HeightmapIsland : MonoBehaviour
         mesh.RecalculateBounds();
 
         GetComponent<MeshCollider>().sharedMesh = mesh;
+
+        // Меш і колайдер вже готові до використання - сповіщаємо всіх, хто чекав
+        // (напр. PalmSpawner), незалежно від порядку виконання Start() між скриптами.
+        OnIslandGenerated?.Invoke();
     }
 
     // Знаходить найближчу точку на контурі квадратної основи (в локальних координатах)
@@ -188,6 +208,8 @@ public class HeightmapIsland : MonoBehaviour
         Vector3 localBitePos = transform.InverseTransformPoint(worldBitePos);
         Vector3 edgeLocalPos = GetNearestEdgePointLocal(localBitePos);
         Vector3 worldEdgePos = transform.TransformPoint(edgeLocalPos);
+
+        OnBite?.Invoke(worldEdgePos, radius);
 
         StartCoroutine(BiteCoroutine(worldEdgePos, radius, targetDepthBelowSea, duration));
     }
