@@ -100,11 +100,22 @@ public class FishingController : MonoBehaviour
     private Coroutine activeRoutine;     // поточна "фонова" корутина закидання/очікування (щоб можна було скасувати)
     private Coroutine biteLoopRoutine;   // корутина повторення bite-анімації
     private bool lastCastWasWater;       // чи ціль останнього закидання - вода (визначає, чи можлива поклівка)
+    private bool wasHoldingRod;          // чи вудка була в руках у ПОПЕРЕДНЬОМУ кадрі (щоб зловити момент, коли її прибрали)
 
     void Update()
     {
+        bool holdingRodNow = playerPickup != null && playerPickup.IsHoldingFishingRod;
+
+        if (rodAnimator != null)
+            rodAnimator.SetBool("HasRod", holdingRodNow);
+
+        if (wasHoldingRod && !holdingRodNow)
+            ForceResetRod();
+
+        wasHoldingRod = holdingRodNow;
+
         // Керувати вудкою можна лише поки вона в руках
-        if (playerPickup == null || !playerPickup.IsHoldingFishingRod) return;
+        if (!holdingRodNow) return;
 
         if (!Input.GetMouseButtonDown(1)) return;
 
@@ -322,6 +333,34 @@ public class FishingController : MonoBehaviour
 
         if (rodAnimator != null && !string.IsNullOrEmpty(idleStateName))
             rodAnimator.Play(idleStateName, 0, 0f);
+    }
+
+    /// <summary>
+    /// Викликається, коли вудку прибрали з рук (кинули клавішею R, або переключили слот
+    /// інвентаря на інший предмет/пусто), поки закидання чи підсічка ще тривали.
+    /// На відміну від CancelFishing() - тут НЕ грається анімація змотування (дивитись
+    /// на вудку вже нема кому, вона в кишені/на землі), тому ліска/гачок прибираються
+    /// миттєво через CancelLine(), а всі активні корутини зупиняються одразу.
+    /// rodAnimator.Play (а не SetTrigger) в ReturnToIdle() гарантовано перериває будь-яку
+    /// поточну анімацію (напр. застряглий кадр ThrowHook чи Bite) і ставить дефолтну позу.
+    /// </summary>
+    private void ForceResetRod()
+    {
+        if (activeRoutine != null)
+        {
+            StopCoroutine(activeRoutine);
+            activeRoutine = null;
+        }
+        if (biteLoopRoutine != null)
+        {
+            StopCoroutine(biteLoopRoutine);
+            biteLoopRoutine = null;
+        }
+
+        if (fishingLine != null)
+            fishingLine.CancelLine();
+
+        ReturnToIdle();
     }
 
     private void CatchRandomFish()
