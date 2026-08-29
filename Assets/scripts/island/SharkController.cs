@@ -11,6 +11,16 @@ using System.Collections;
 // в цей момент вона зупиняється, грає анімацію Bite, в потрібну мить викликає
 // callback (яким HeightmapIsland "відкушує" шматок острова саме в цьому напрямку),
 // трохи "їсть" на місці, а потім продовжує патрулювання далі по колу.
+//
+// Поїдання риби: WaterFishZone задає позицію риби, яка впала в море (RequestEatFish).
+// Акула перериває патрулювання, телепортується до риби, повертається обличчям
+// до острова (а не до самої риби) і їсть, потім повертається на те саме місце
+// на колі і продовжує звичайне патрулювання.
+//
+// Пріоритет: якщо в момент падіння риби акула ще тільки ЗАПЛАНУВАЛА укус
+// (пливе до потрібного градуса, але ще не почала кусати) - риба скасовує
+// цей план, і акула йде їсти рибу. Якщо акула вже ФАКТИЧНО кусає/жує острів
+// (isBiting = true) - запит на рибу ігнорується, риба почекає наступного разу.
 [RequireComponent(typeof(Animator))]
 public class SharkController : MonoBehaviour
 {
@@ -40,9 +50,18 @@ public class SharkController : MonoBehaviour
     public float eatShakeAmplitude = 0.15f;
     public float eatShakeSpeed = 6f;
 
+    [Header("Поїдання риби в морі")]
+    [Tooltip("Швидкість, з якою акула пливе напряму до впалої риби (не використовується при телепорті, лишено про запас)")]
+    public float eatFishSwimSpeed = 8f;
+    [Tooltip("На якій відстані до риби акула вважає, що доплила і може її з'їсти (не використовується при телепорті)")]
+    public float eatFishStopDistance = 1.2f;
+    [Tooltip("Скільки секунд триває плавне повернення на коло після поїдання риби (не використовується при телепорті)")]
+    public float swimBackDuration = 1f;
+
     private Animator animator;
     private float patrolAngle;
     private bool isBiting = false;
+    private bool isEating = false;
 
     // Кут (у тій самій "необгорнутій" шкалі, що й patrolAngle), на якому треба зупинитись і вкусити.
     private float? pendingTargetAngle = null;
@@ -60,7 +79,7 @@ public class SharkController : MonoBehaviour
 
     void Update()
     {
-        if (isBiting) return; // під час укусу/поїдання рухом керує BiteRoutine
+        if (isBiting || isEating) return; // під час укусу/поїдання рухом керує окрема корутина
 
         Patrol();
 
@@ -110,8 +129,10 @@ public class SharkController : MonoBehaviour
         }
     }
 
-    // true, якщо акула вже зайнята укусом (кусає/їсть) або прямує до запланованого укусу.
-    public bool IsBusyWithBite => isBiting || pendingTargetAngle.HasValue;
+    // true, якщо акула ФАКТИЧНО зайнята (кусає/їсть острів, чи зараз їсть рибу).
+    // Запланований (ще не розпочатий) укус острова сюди НЕ входить -
+    // його риба має право перебити (див. RequestEatFish).
+    public bool IsBusyWithBite => isBiting || isEating;
 
     // Викликається ззовні (SharkBiteController). Акула НЕ телепортується і НЕ звертає -
     // вона просто продовжує звичайне патрулювання, аж доки природним чином не дійде
@@ -127,6 +148,71 @@ public class SharkController : MonoBehaviour
         pendingTargetAngle = patrolAngle + delta;
         pendingOnImpact = onBiteImpact;
         pendingBiteDuration = biteDuration;
+    }
+
+    // Викликається ззовні (WaterFishZone), коли риба впала в море.
+    // Якщо акула вже ФАКТИЧНО кусає/жує острів - ігноруємо (риба почекає наступного разу).
+    // Якщо акула лише ЗАПЛАНУВАЛА укус (ще пливе туди) - скасовуємо план і йдемо їсти рибу.
+    // Акула телепортується до риби, з'їдає її, повертається на те саме місце на колі.
+    public void RequestEatFish(Transform fish, FishProgressBar progressBar)
+    {
+        Debug.Log("[EatFish] Викликано. isBiting=" + isBiting + ", isEating=" + isEating + ", pendingTargetAngle=" + pendingTargetAngle);
+
+        if (isBiting || isEating) return;
+        if (fish == null) return;
+
+        // Скасовуємо запланований (ще не розпочатий) укус острова - риба важливіша
+        pendingTargetAngle = null;
+        pendingOnImpact = null;
+
+        StartCoroutine(EatFishRoutine(fish, progressBar));
+    }
+
+    private IEnumerator EatFishRoutine(Transform fish, FishProgressBar progressBar)
+    {
+        Debug.Log("EatFishRoutine ЗАПУЩЕНО, риба: " + (fish != null ? fish.name : "null"));
+        isEating = true;
+
+        // Запам'ятовуємо позицію на колі, де акула була до телепорту - щоб повернутись сюди ж
+        Vector3 circleReturnPos = transform.position;
+        Quaternion circleReturnRot = transform.rotation;
+        float returnAngle = patrolAngle;
+
+        // Телепортуємось прямо до риби
+        if (fish != null)
+        {
+            Vector3 eatPos = fish.position;
+            eatPos.y = patrolHeight; // тримаємось на висоті плавання, а не на висоті самої риби
+            transform.position = eatPos;
+        }
+
+        // Повертаємось обличчям до острова (а не до риби), незалежно від того,
+        // з якого боку впала риба - акула завжди "дивиться" на orbitCenter
+        if (orbitCenter != null)
+        {
+            Vector3 dirToIsland = orbitCenter.position - transform.position;
+            dirToIsland.y = 0f;
+            if (dirToIsland != Vector3.zero)
+                transform.rotation = Quaternion.LookRotation(dirToIsland.normalized);
+        }
+
+        // З'їдаємо рибу
+        animator.SetTrigger(eatTriggerName);
+
+        if (fish != null)
+            Destroy(fish.gameObject);
+
+        if (progressBar != null)
+            progressBar.AddFish(1);
+
+        yield return new WaitForSeconds(eatHoldDuration);
+
+        // Телепортуємось назад на коло, туди, де акула була до цього
+        transform.position = circleReturnPos;
+        transform.rotation = circleReturnRot;
+        patrolAngle = returnAngle;
+
+        isEating = false;
     }
 
     private IEnumerator BiteRoutine(System.Action onBiteImpact, float biteDuration)

@@ -1,15 +1,20 @@
 using UnityEngine;
 
-public class FishDropZone : MonoBehaviour
+public class WaterFishZone : MonoBehaviour
 {
+    public SharkController shark;
     public FishProgressBar progressBar;
 
     void OnTriggerEnter(Collider other)
     {
+        Debug.Log("WaterFishZone: тригер спрацював з " + other.name + ", тег: " + other.tag);
+
         if (other.CompareTag("Fish"))
         {
-            progressBar.AddFish(1);
-            Destroy(other.gameObject); // прибрати рибу після зарахува
+            if (shark != null)
+                shark.RequestEatFish(other.transform, progressBar);
+            else
+                Debug.LogWarning("[WaterFishZone] Shark не призначено!");
         }
     }
 }

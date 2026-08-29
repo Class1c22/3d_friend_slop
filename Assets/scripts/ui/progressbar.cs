@@ -13,13 +13,22 @@ public class FishProgressBar : MonoBehaviour
     private Material matInstance;
     private int currentFish = 0;
 
+    private float fullScaleX;
+    private float leftEdgeX; // фіксована позиція лівого краю бару
+
     void Start()
     {
         spriteRend = GetComponent<SpriteRenderer>();
 
-        // Створюємо ВЛАСНУ копію матеріалу, щоб не чіпати спільний Sprite-Unlit-Default
+        fullScaleX = transform.localScale.x;
+
+        // Обчислюємо позицію лівого краю (з урахуванням pivot по центру)
+        leftEdgeX = transform.localPosition.x - (fullScaleX / 2f);
+
         matInstance = new Material(spriteRend.sharedMaterial);
         spriteRend.material = matInstance;
+
+        UpdateVisual();
     }
 
     void Update()
@@ -33,11 +42,36 @@ public class FishProgressBar : MonoBehaviour
     {
         currentFish += amount;
         currentFish = Mathf.Clamp(currentFish, 0, fishNeeded);
-        // тут можна оновити fillAmount, якщо додасте окремий Image для заповнення
+
+        UpdateVisual();
+
+        Debug.Log("Риба зарахована! Прогрес: " + currentFish + "/" + fishNeeded);
+
         if (currentFish >= fishNeeded)
         {
-            Debug.Log("Бар заповнено!");
+            OnBarFull();
         }
+    }
+
+    private void UpdateVisual()
+    {
+        float progress = (float)currentFish / fishNeeded;
+        float newScaleX = progress * fullScaleX;
+
+        // Центр = лівий край + половина нового розміру
+        // (це тримає лівий край на місці незалежно від знаку scale)
+        Vector3 pos = transform.localPosition;
+        pos.x = leftEdgeX + (newScaleX / 2f);
+        transform.localPosition = pos;
+
+        Vector3 scale = transform.localScale;
+        scale.x = newScaleX;
+        transform.localScale = scale;
+    }
+
+    private void OnBarFull()
+    {
+        Debug.Log("Бар заповнено! Риби достатньо.");
     }
 
     void OnDestroy()
