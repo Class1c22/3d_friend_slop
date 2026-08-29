@@ -1,38 +1,35 @@
+using Photon.Pun;
 using UnityEngine;
 using System.Collections;
 
+// ВАЖЛИВО про мультиплеєр: цей об'єкт лежить у сцені (не спавниться рантайм),
+// тому його PhotonView має бути налаштований у сцені як "Scene Object" -
+// власником такого PhotonView автоматично і завжди є поточний MasterClient
+// (Photon сам перепризначає власність, якщо MasterClient від'єднається).
+// Завдяки цьому photonView.IsMine на цьому скрипті еквівалентно
+// PhotonNetwork.IsMasterClient - саме тому вирішувати, ЩО кусати, дозволено
+// тільки MasterClient (див. SharkBiteController), а сам HeightmapIsland
+// лише РОЗСИЛАЄ фактичний результат укусу всім через RPC, щоб меш
+// деформувався ОДНАКОВО на кожному екрані.
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider))]
-public class HeightmapIsland : MonoBehaviour
+[RequireComponent(typeof(PhotonView))]
+public class HeightmapIsland : MonoBehaviourPun
 {
     [Header("Сітка")]
     public int resolution = 100;
-    public float worldSize = 40f; // розмір квадратної основи (борти/дно), у яку вписано круглу гору
+    public float worldSize = 40f;
 
     [Header("Форма гори")]
-    [Tooltip("Радіус круглого острова. За замовчуванням = worldSize/2, тобто коло вписане в квадрат основи.")]
-    public float islandRadius = -1f; // -1 = використати worldSize/2 автоматично
-    public float peakHeight = 8f;    // висота вершини гори в центрі
-    [Tooltip("Дрібні нерівності поверхні (пагорби), затухають до країв разом з горою")]
+    public float islandRadius = -1f;
+    public float peakHeight = 8f;
     public float noiseScale = 8f;
     public float noiseAmplitude = 1f;
 
     [Header("Вода")]
     public float seaLevel = 0f;
 
-    // Стріляє одразу після того, як меш острова згенеровано і MeshCollider оновлено.
-    // Підписуйся сюди в скриптах, яким потрібна готова поверхня (спавн пальм, риби тощо),
-    // щоб не залежати від порядку виконання Start() між різними скриптами.
     public event System.Action OnIslandGenerated;
-
-    // Ефективний радіус острова (враховує islandRadius == -1 як "worldSize/2 за замовчуванням").
-    // Зручний шорткат для скриптів типу PalmSpawner, яким потрібне те саме значення,
-    // що вже використовується всередині GenerateMesh().
     public float EffectiveRadius => islandRadius > 0f ? islandRadius : worldSize / 2f;
-
-    // Стріляє одразу в момент укусу (BiteAt), ДО того як ямка встигне провалитись -
-    // передає світові координати центру укусу і його радіус. Підписуйся сюди, якщо
-    // треба відреагувати на конкретне місце укусу (напр. PalmSpawner прибирає пальми,
-    // що опинились в радіусі укусу, синхронно з провалом ґрунту).
     public event System.Action<Vector3, float> OnBite;
 
     private Mesh mesh;
@@ -41,6 +38,9 @@ public class HeightmapIsland : MonoBehaviour
 
     void Start()
     {
+        // Генерація мешу - суто детермінований локальний розрахунок (без Random),
+        // тому кожен клієнт може згенерувати його самостійно при старті сцени -
+        // результат гарантовано однаковий на всіх, синхронізувати нема потреби.
         GenerateMesh();
     }
 
@@ -52,8 +52,8 @@ public class HeightmapIsland : MonoBehaviour
 
         int vertsPerSide = resolution + 1;
         topVertCount = vertsPerSide * vertsPerSide;
-        int perimeterCount = resolution * 4; // без дублювання кутів
-        float baseDepth = -20f; // наскільки глибоко "дно" острова
+        int perimeterCount = resolution * 4;
+        float baseDepth = -20f;
         float half = worldSize / 2f;
         float radius = islandRadius > 0f ? islandRadius : half;
 
@@ -62,9 +62,6 @@ public class HeightmapIsland : MonoBehaviour
 
         float step = worldSize / resolution;
 
-        // Гора: висота максимальна в центрі (peakHeight) і плавно спадає до
-        // seaLevel на відстані islandRadius від центру — це і дає круглий контур
-        // острова (кути квадратної сітки опиняються під водою і не видно).
         for (int z = 0; z <= resolution; z++)
         {
             for (int x = 0; x <= resolution; x++)
@@ -75,9 +72,9 @@ public class HeightmapIsland : MonoBehaviour
                 float dist = Mathf.Sqrt(px * px + pz * pz);
 
                 float shape = Mathf.Clamp01(1f - dist / radius);
-                shape = shape * shape * (3f - 2f * shape); // smoothstep — плавний купол гори
+                shape = shape * shape * (3f - 2f * shape);
 
-                float noiseValue = Mathf.PerlinNoise(x / noiseScale, z / noiseScale) - 0.5f; // -0.5..0.5
+                float noiseValue = Mathf.PerlinNoise(x / noiseScale, z / noiseScale) - 0.5f;
                 float height = seaLevel + shape * peakHeight + noiseValue * noiseAmplitude * shape;
 
                 topVertices[i] = new Vector3(px, height, pz);
@@ -85,7 +82,6 @@ public class HeightmapIsland : MonoBehaviour
             }
         }
 
-        // Периметр верхньої сітки (за годинниковою стрілкою, без повтору кутів)
         int[] perimeterIndices = new int[perimeterCount];
         int p = 0;
         for (int x = 0; x < resolution; x++) perimeterIndices[p++] = 0 * vertsPerSide + x;
@@ -93,7 +89,6 @@ public class HeightmapIsland : MonoBehaviour
         for (int x = resolution; x > 0; x--) perimeterIndices[p++] = resolution * vertsPerSide + x;
         for (int z = resolution; z > 0; z--) perimeterIndices[p++] = z * vertsPerSide + 0;
 
-        // Дно — плоский суцільний квадрат (4 кутові вершини), приховане під водою за межами круглої гори.
         int bottomCornerCount = 4;
         int totalVerts = topVertCount + perimeterCount + bottomCornerCount;
         vertices = new Vector3[totalVerts];
@@ -109,7 +104,6 @@ public class HeightmapIsland : MonoBehaviour
             uvs[bottomRingStart + idx] = Vector2.zero;
         }
 
-        // Кути квадратного дна: BL, BR, TR, TL (0..3)
         int bottomCornersStart = bottomRingStart + perimeterCount;
         vertices[bottomCornersStart + 0] = new Vector3(-half, baseDepth, -half);
         vertices[bottomCornersStart + 1] = new Vector3(half, baseDepth, -half);
@@ -119,11 +113,10 @@ public class HeightmapIsland : MonoBehaviour
 
         int topTriCount = resolution * resolution * 6;
         int wallTriCount = perimeterCount * 6;
-        int bottomTriCount = 6; // всього 2 трикутники на плоский квадрат дна
+        int bottomTriCount = 6;
         int[] triangles = new int[topTriCount + wallTriCount + bottomTriCount];
         int t = 0;
 
-        // Верхня поверхня (гора)
         for (int z = 0; z < resolution; z++)
         {
             for (int x = 0; x < resolution; x++)
@@ -138,7 +131,6 @@ public class HeightmapIsland : MonoBehaviour
             }
         }
 
-        // Бічні стінки периметра (приховані під водою за межами гори)
         for (int idx = 0; idx < perimeterCount; idx++)
         {
             int nextIdx = (idx + 1) % perimeterCount;
@@ -151,7 +143,6 @@ public class HeightmapIsland : MonoBehaviour
             triangles[t++] = topB; triangles[t++] = botA; triangles[t++] = botB;
         }
 
-        // Пласке квадратне дно (2 трикутники, нормаль вниз)
         int c00 = bottomCornersStart + 0;
         int c10 = bottomCornersStart + 1;
         int c11 = bottomCornersStart + 2;
@@ -168,13 +159,9 @@ public class HeightmapIsland : MonoBehaviour
 
         GetComponent<MeshCollider>().sharedMesh = mesh;
 
-        // Меш і колайдер вже готові до використання - сповіщаємо всіх, хто чекав
-        // (напр. PalmSpawner), незалежно від порядку виконання Start() між скриптами.
         OnIslandGenerated?.Invoke();
     }
 
-    // Знаходить найближчу точку на контурі квадратної основи (в локальних координатах)
-    // до заданої точки — так укус завжди "прилипає" до борту, а не всередину острова.
     private Vector3 GetNearestEdgePointLocal(Vector3 localPos)
     {
         float half = worldSize / 2f;
@@ -200,10 +187,20 @@ public class HeightmapIsland : MonoBehaviour
         return new Vector3(px, 0f, -half);
     }
 
-    // Плавно опускає вершини верхньої поверхні в радіусі навколо найближчого борту
-    // острова до worldBitePos, нижче рівня моря. Кругла форма — за рахунок
-    // radial falloff (Vector2.Distance + SmoothStep) від точки укусу.
+    /// <summary>
+    /// Точка входу для SharkBiteController. НЕ виконує деформацію напряму -
+    /// лише розсилає точні параметри укусу всім клієнтам через RPC, щоб
+    /// у всіх меш провалився в ОДНАКОВОМУ місці з ОДНАКОВИМ радіусом.
+    /// Викликати має сенс лише той клієнт, для якого photonView.IsMine == true
+    /// (тобто MasterClient) - SharkBiteController це вже гарантує.
+    /// </summary>
     public void BiteAt(Vector3 worldBitePos, float radius, float targetDepthBelowSea, float duration)
+    {
+        photonView.RPC(nameof(RPC_BiteAt), RpcTarget.All, worldBitePos, radius, targetDepthBelowSea, duration);
+    }
+
+    [PunRPC]
+    private void RPC_BiteAt(Vector3 worldBitePos, float radius, float targetDepthBelowSea, float duration)
     {
         Vector3 localBitePos = transform.InverseTransformPoint(worldBitePos);
         Vector3 edgeLocalPos = GetNearestEdgePointLocal(localBitePos);
@@ -218,7 +215,6 @@ public class HeightmapIsland : MonoBehaviour
     {
         Vector3 localBitePos = transform.InverseTransformPoint(worldBitePos);
 
-        // Кусаємо лише верхню поверхню (гору) — стіни і дно не чіпаємо.
         float[] startHeights = new float[topVertCount];
         for (int i = 0; i < topVertCount; i++)
             startHeights[i] = vertices[i].y;

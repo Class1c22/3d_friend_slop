@@ -1,7 +1,9 @@
+using Photon.Pun;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
-public class PlayerController : MonoBehaviour
+[RequireComponent(typeof(PhotonView))]
+public class PlayerController : MonoBehaviourPun
 {
     [Header("Рух")]
     public float walkSpeed = 3f;
@@ -32,6 +34,17 @@ public class PlayerController : MonoBehaviour
             cameraTransform = Camera.main.transform;
         if (handAnimatorController == null)
             handAnimatorController = GetComponentInChildren<HandAnimatorController>();
+
+        // ВАЖЛИВО: якщо цей об'єкт заспавнений PhotonNetwork.Instantiate і належить
+        // ІНШОМУ гравцю - вимикаємо скрипт повністю. Без цього Update() читав би
+        // ЛОКАЛЬНИЙ Input цього клієнта і рухав би чужого персонажа.
+        // (PlayerRig.cs теж це робить при спавні, ця перевірка - підстраховка
+        // на випадок, якщо скрипт увімкнули вручну або PlayerRig не призначений.)
+        if (!photonView.IsMine)
+        {
+            enabled = false;
+            return;
+        }
     }
 
     void Update()
@@ -39,12 +52,9 @@ public class PlayerController : MonoBehaviour
         bool wasGrounded = isGrounded;
         isGrounded = controller.isGrounded;
 
-        // Сповіщаємо скрипт рук про землю КОЖЕН кадр, коли стан змінився -
-        // так isGrounded в руках завжди синхронний з isGrounded персонажа
         if (isGrounded != wasGrounded && handAnimatorController != null)
             handAnimatorController.SetGrounded(isGrounded);
 
-        // Щойно приземлились - скидаємо стан стрибка і "прибиваємо" до землі
         if (isGrounded)
         {
             if (velocity.y < 0)
@@ -58,8 +68,6 @@ public class PlayerController : MonoBehaviour
         float v = Input.GetAxis("Vertical");
         bool isRunning = Input.GetKey(KeyCode.LeftShift);
 
-        // Стрибок можна почати лише стоячи на землі і якщо ще не в стрибку -
-        // це не дає натисканню кнопки в повітрі повторно тригерити анімацію
         bool jumpPressed = Input.GetButtonDown("Jump") && isGrounded && !isJumping;
 
         Vector3 inputDir = new Vector3(h, 0f, v).normalized;
@@ -69,7 +77,6 @@ public class PlayerController : MonoBehaviour
         {
             float speed = isRunning ? runSpeed : walkSpeed;
 
-            // Напрямок руху рахуємо від камери (без Y компоненти), а не від тіла
             Vector3 camForward = cameraTransform.forward;
             camForward.y = 0f;
             camForward.Normalize();
@@ -106,5 +113,9 @@ public class PlayerController : MonoBehaviour
 
         if (jumpPressed)
             animator.SetTrigger("jump");
+
+        // Ці параметри Animator читає компонент Photon Animator View (додати
+        // в інспекторі на PhotonView гравця -> Observed Components) і сам
+        // розсилає їх іншим клієнтам - додаткового коду для цього не треба.
     }
 }

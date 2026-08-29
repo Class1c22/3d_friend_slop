@@ -1,34 +1,18 @@
+using Photon.Pun;
 using UnityEngine;
 
-// Повісити на персонажа гравця (mainhero_animated).
-public class PlayerPickup : MonoBehaviour
+public class PlayerPickup : MonoBehaviourPun
 {
-    [Tooltip("Точка в руці, куди буде 'телепортуватись' предмет за замовчуванням (порожній GameObject у долоні). Використовується, якщо у предмета не задано власну customAttachPoint.")]
     public Transform handAttachPoint;
-
-    [Tooltip("Радіус, у якому можна підняти предмет")]
     public float pickupRadius = 2f;
-
-    [Tooltip("Шар, на якому знаходяться предмети для підбору (щоб не чіплялись зайві об'єкти)")]
     public LayerMask pickupableLayer;
-
-    [Tooltip("Посилання на контролер анімацій рук - щоб вмикати/вимикати IsHolding, грати анімацію взяття в руки та тримати позу риболовлі")]
     public HandAnimatorController handAnimatorController;
-
-    [Tooltip("Посилання на інвентар. Якщо не задано - предмети підбираються напряму в руку по-старому, без слотів.")]
     public InventoryManager inventoryManager;
-
-    [Tooltip("Назва Equip Anim Trigger, яка означає саме вудку (має співпадати з полем Equip Anim Trigger на об'єкті вудки)")]
     public string fishingRodTriggerName = "EquipRod";
-
-    [Tooltip("Сила кидка вперед")]
     public float throwForwardForce = 6f;
-
-    [Tooltip("Сила кидка вгору (щоб предмет летів дугою, а не по прямій)")]
     public float throwUpwardForce = 2f;
 
     private Pickupable currentlyHeld = null;
-    /// <summary>Чи саме вудка зараз в руках гравця (для FishingController).</summary>
     public bool IsHoldingFishingRod =>
         currentlyHeld != null && currentlyHeld.equipAnimTrigger == fishingRodTriggerName;
 
@@ -47,6 +31,16 @@ public class PlayerPickup : MonoBehaviour
         {
             inventoryManager.OnEquip -= HandleEquip;
             inventoryManager.OnUnequip -= HandleUnequip;
+        }
+    }
+
+    void Start()
+    {
+        // Підстраховка: якщо PlayerRig з якоїсь причини не вимкнув цей скрипт
+        // на чужій копії - робимо це тут теж.
+        if (!photonView.IsMine)
+        {
+            enabled = false;
         }
     }
 
@@ -82,41 +76,52 @@ public class PlayerPickup : MonoBehaviour
 
         if (closest == null) return;
 
+        if (inventoryManager != null && !inventoryManager.HasFreeSlot())
+        {
+            Debug.Log("[PlayerPickup] Інвентар повний - неможливо підняти предмет.");
+            return;
+        }
+
+        PhotonView itemView = closest.GetComponent<PhotonView>();
+        if (itemView == null)
+        {
+            Debug.LogError($"[PlayerPickup] На предметі '{closest.name}' немає PhotonView - додай його, інакше підбір не синхронізується по мережі.");
+            return;
+        }
+
+        // Гонка: якщо два гравці натиснули E в один момент по одному предмету,
+        // RPC_RequestPickup сам вирішить (на власнику предмета/MasterClient),
+        // хто саме забрав, і розішле фактичний результат всім через RPC_Store.
+        itemView.RPC(nameof(Pickupable.RPC_RequestPickup), RpcTarget.All, photonView.ViewID);
+    }
+
+    /// <summary>
+    /// Викликається з Pickupable.RPC_Store, коли мережа підтвердила, що САМЕ
+    /// цей гравець (photonView.IsMine == true) отримав предмет у руки/інвентар.
+    /// </summary>
+    public void ConfirmPickup(Pickupable item)
+    {
         if (inventoryManager != null)
         {
-            if (!inventoryManager.HasFreeSlot())
-            {
-                Debug.Log("[PlayerPickup] Інвентар повний - неможливо підняти предмет.");
-                return;
-            }
-
-            // Ховаємо предмет за замовчуванням (він тепер "в інвентарі").
-            // Якщо руки зараз порожні - AddItem одразу викличе OnEquip -> HandleEquip,
-            // і той самий кадр покаже предмет у руці (перекриє щойно виконаний Store()).
-            closest.Store();
-            inventoryManager.AddItem(closest);
+            item.Store();
+            inventoryManager.AddItem(item);
         }
         else
         {
-            // Фолбек, якщо InventoryManager не призначений - стара поведінка "напряму в руку"
-            EquipItem(closest);
+            EquipItem(item);
         }
     }
-    
 
-    /// <summary>Викликається InventoryManager, коли треба показати конкретний предмет у руці.</summary>
     private void HandleEquip(Pickupable item)
     {
         if (currentlyHeld == item) return;
 
-        // Попередній предмет лишається в інвентарі, просто ховаємо його з руки
         if (currentlyHeld != null)
             currentlyHeld.Store();
 
         EquipItem(item);
     }
 
-    /// <summary>Викликається InventoryManager, коли обрано пустий слот / знято виділення.</summary>
     private void HandleUnequip()
     {
         if (currentlyHeld != null)
@@ -143,12 +148,8 @@ public class PlayerPickup : MonoBehaviour
         if (handAnimatorController != null)
         {
             handAnimatorController.SetHolding(true);
-
-            // Якщо для цього предмета задана окрема анімація "взяти в руки" -
-            // програємо саме її (напр. EquipRod для вудки).
             handAnimatorController.PlayEquipAnimation(item.equipAnimTrigger);
 
-            // Якщо взяли саме вудку - тримаємо позу риболовлі, поки вудка в руках.
             bool isFishingRod = item.equipAnimTrigger == fishingRodTriggerName;
             handAnimatorController.SetFishingEquipped(isFishingRod);
         }
@@ -164,9 +165,11 @@ public class PlayerPickup : MonoBehaviour
         Pickupable thrown = currentlyHeld;
 
         if (inventoryManager != null)
-            inventoryManager.RemoveItem(thrown); // прибирає зі слота і викличе HandleUnequip
+            inventoryManager.RemoveItem(thrown);
 
-        thrown.Drop(throwStartPos, throwVelocity);
+        PhotonView itemView = thrown.GetComponent<PhotonView>();
+        itemView.RPC(nameof(Pickupable.RPC_Drop), RpcTarget.All, throwStartPos, throwVelocity);
+
         currentlyHeld = null;
 
         if (handAnimatorController != null)

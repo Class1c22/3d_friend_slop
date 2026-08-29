@@ -1,16 +1,17 @@
+using Photon.Pun;
 using UnityEngine;
 
-public class FirstPersonCamera : MonoBehaviour
+public class FirstPersonCamera : MonoBehaviourPun
 {
     [Header("Тіло персонажа")]
     public Transform playerBody; // mainhero_animated
 
     [Header("Позиція камери (голова)")]
-    public Transform headTarget;              // кістка ока/голови для позиції камери
+    public Transform headTarget;
     public Vector3 headOffsetIfNoTarget = new Vector3(0f, 1.6f, 0f);
 
     [Header("Ціль для повороту голови (Multi-Aim Constraint)")]
-    public Transform headLookTarget;          // об'єкт HeadLookTarget, куди дивиться голова
+    public Transform headLookTarget;
     public float headLookDistance = 3f;
 
     [Header("Чутливість")]
@@ -28,6 +29,16 @@ public class FirstPersonCamera : MonoBehaviour
 
     void Start()
     {
+        // Чужі копії не повинні захоплювати курсор і не повинні крутити playerBody
+        // за нашою локальною мишею - інакше на екрані клієнта А курсор блокується
+        // N разів (по одному на кожного заспавненого гравця), і миша А крутить
+        // голови всіх аватарів у сцені.
+        if (!photonView.IsMine)
+        {
+            enabled = false;
+            return;
+        }
+
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
         justLocked = true;
@@ -71,7 +82,6 @@ public class FirstPersonCamera : MonoBehaviour
         else if (playerBody != null)
             transform.position = playerBody.position + headOffsetIfNoTarget;
 
-        // Ціль для голови ставиться попереду камери з урахуванням pitch (нахил вгору/вниз)
         if (headLookTarget != null)
             headLookTarget.position = transform.position + transform.forward * headLookDistance;
     }
