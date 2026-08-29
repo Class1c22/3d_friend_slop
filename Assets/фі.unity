@@ -2860,6 +2860,7 @@ MonoBehaviour:
   patrolBobAmplitude: 0.5
   patrolBobSpeed: 1
   rotateSpeed: 5
+  visualForwardOffsetY: 180
   biteTriggerName: Bite
   biteImpactFraction: 0.4
   eatTriggerName: Eat
