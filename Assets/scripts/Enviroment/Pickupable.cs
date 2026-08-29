@@ -30,10 +30,25 @@ public class Pickupable : MonoBehaviour
     private Rigidbody rb;
     private Collider col;
 
+    // Природний поворот предмета "в світі" (яким його розставив дизайнер/спавнер),
+    // ЗАФІКСОВАНИЙ ДО першого підбору. Потрібен, щоб при Drop() повернути предмет
+    // саме в цю орієнтацію, а не в кут attachRotationOffset, під яким він лежав у руці -
+    // інакше викинутий предмет виглядає "зігнутим"/перекошеним відносно землі.
+    private Quaternion defaultWorldRotation;
+
+    // Оригінальний localScale предмета, ЗАФІКСОВАНИЙ ДО першого підбору.
+    // Потрібен, щоб явно відновлювати правильний масштаб при PickUp/Store/Drop,
+    // а не покладатись на автоматичний перерахунок Unity в SetParent(x, true) -
+    // саме він і "роздував"/спотворював предмет, якщо серед батьків руки
+    // трапляється нерівномірний (не 1,1,1) масштаб.
+    private Vector3 originalScale;
+
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
         col = GetComponent<Collider>();
+        defaultWorldRotation = transform.rotation;
+        originalScale = transform.localScale;
     }
 
     /// <summary>
@@ -56,11 +71,13 @@ public class Pickupable : MonoBehaviour
             col.enabled = false;
 
         // "Телепортуємо" в руку: робимо дочірнім об'єктом точки прикріплення.
-        // Якщо для предмета задані власні offset'и (напр. вудка має лежати не рівно
-        // по нулях, а під кутом) - використовуємо їх, інакше поведінка як і раніше (нулі).
-        transform.SetParent(handAttachPoint);
+        // false = НЕ намагатись зберегти world position/rotation/scale при зміні батька.
+        // Саме дефолтне true викликало неправильний авто-перерахунок localScale,
+        // якщо десь у батьках handAttachPoint є нерівномірний масштаб - звідси й "роздування".
+        transform.SetParent(handAttachPoint, false);
         transform.localPosition = attachPositionOffset;
         transform.localRotation = Quaternion.Euler(attachRotationOffset);
+        transform.localScale = originalScale; // явно, а не покладаємось на Unity
     }
 
     /// <summary>
@@ -72,7 +89,8 @@ public class Pickupable : MonoBehaviour
     {
         isHeld = true;
 
-        transform.SetParent(null);
+        transform.SetParent(null, false);
+        transform.localScale = originalScale;
 
         if (rb != null)
         {
@@ -94,8 +112,10 @@ public class Pickupable : MonoBehaviour
         gameObject.SetActive(true); // якщо викидаємо прямо зі "схованого" стану інвентаря
         isHeld = false;
 
-        transform.SetParent(null);
+        transform.SetParent(null, false);
         transform.position = dropWorldPosition;
+        transform.rotation = defaultWorldRotation; // повертаємо природну орієнтацію, а не кут, під яким предмет лежав у руці
+        transform.localScale = originalScale; // підстраховка від накопиченої похибки масштабу
 
         if (col != null)
             col.enabled = true;
