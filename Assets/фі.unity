@@ -225,6 +225,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 16758570}
   m_CullTransparentMesh: 1
+--- !u!1 &147458527
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 147458528}
+  m_Layer: 0
+  m_Name: Vfxspawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &147458528
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 147458527}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -11.029, y: 4.926, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1273853794}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &156958210
 GameObject:
   m_ObjectHideFlags: 0
@@ -1436,6 +1467,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 1b9ec6032d00c944d8fd0eca11452400, type: 3}
       insertIndex: 0
       addedObject: {fileID: 1763687913}
+    - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 1b9ec6032d00c944d8fd0eca11452400, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 147458528}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 1b9ec6032d00c944d8fd0eca11452400, type: 3}
       insertIndex: -1
@@ -1777,6 +1811,11 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!137 &816734111 stripped
+SkinnedMeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -2105236087064383499, guid: 1b9ec6032d00c944d8fd0eca11452400, type: 3}
+  m_PrefabInstance: {fileID: 436170794}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &842438551
 GameObject:
   m_ObjectHideFlags: 0
@@ -2048,7 +2087,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WaterFishZone
   shark: {fileID: 1273853792}
-  progressBar: {fileID: 262788147}
 --- !u!65 &963777751
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -2286,6 +2324,26 @@ MonoBehaviour:
   eatFishStopDistance: 1.2
   swimBackDuration: 1
   visualForwardOffsetYFacingIsland: 90
+  allFishSpeciesIds:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  likedSpeciesCount: 2
+  likeTriggerName: Like
+  dislikeTriggerName: Dislike
+  reactionDelay: 1.5
+  progressBar: {fileID: 262788147}
+  maxPreferencesWaitSeconds: 3
+  sharkRenderer: {fileID: 816734111}
+  likeMaterial: {fileID: 2100000, guid: eb9b6a35f88c0cd47a24ca6b38c29b6c, type: 2}
+  likeMaterialDuration: 2
+  likeHeartsEffectPrefab: {fileID: 3436185334505684903, guid: 936da4ac75dfce5489cbc658336c15a4, type: 3}
+  heartsSpawnPoint: {fileID: 147458528}
+  heartsEffectLifetime: 4
+  dislikeEffectPrefab: {fileID: 3436185334505684903, guid: 515b4795cc5d7444da0038013dceb11b, type: 3}
+  dislikeEffectLifetime: 4
 --- !u!95 &1273853793
 Animator:
   serializedVersion: 7
@@ -2334,6 +2392,12 @@ MonoBehaviour:
   - Type: 9
     SynchronizeType: 0
     Name: EatFish
+  - Type: 9
+    SynchronizeType: 0
+    Name: Like
+  - Type: 9
+    SynchronizeType: 0
+    Name: Dislike
   m_SynchronizeLayers:
   - SynchronizeType: 0
     LayerIndex: 0
@@ -2736,6 +2800,7 @@ MonoBehaviour:
   attachPositionOffset: {x: 0, y: 0, z: 0}
   attachRotationOffset: {x: 0, y: 0, z: 0}
   equipAnimTrigger: 
+  fishSpeciesId: 
 --- !u!65 &1547044998
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -2937,7 +3002,7 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.5
   far clip plane: 2000.01
   field of view: 80
   orthographic: 0
@@ -3719,6 +3784,10 @@ PrefabInstance:
     m_TransformParent: {fileID: 1907945835}
     m_Modifications:
     - target: {fileID: 719219789848578017, guid: 3dbb437450e2593419e2f3f92d73ab2e, type: 3}
+      propertyPath: fishSpeciesId
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 719219789848578017, guid: 3dbb437450e2593419e2f3f92d73ab2e, type: 3}
       propertyPath: customAttachPoint
       value: 
       objectReference: {fileID: 1816874171}
@@ -3828,6 +3897,10 @@ PrefabInstance:
       value: fish4
       objectReference: {fileID: 0}
     - target: {fileID: 5901254386413881390, guid: 13a888d881472ba4da1e608a378f7cae, type: 3}
+      propertyPath: fishSpeciesId
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 5901254386413881390, guid: 13a888d881472ba4da1e608a378f7cae, type: 3}
       propertyPath: customAttachPoint
       value: 
       objectReference: {fileID: 1816874171}
@@ -3897,6 +3970,10 @@ PrefabInstance:
       value: fish5
       objectReference: {fileID: 0}
     - target: {fileID: 8506173577848970387, guid: 82f1ddff62e5b064487827b318fe5082, type: 3}
+      propertyPath: fishSpeciesId
+      value: 5
+      objectReference: {fileID: 0}
+    - target: {fileID: 8506173577848970387, guid: 82f1ddff62e5b064487827b318fe5082, type: 3}
       propertyPath: customAttachPoint
       value: 
       objectReference: {fileID: 1816874171}
@@ -3960,6 +4037,10 @@ PrefabInstance:
     - target: {fileID: 7868500961887613667, guid: 58f1048973b976744852f2ed5584c1af, type: 3}
       propertyPath: m_Name
       value: fish3
+      objectReference: {fileID: 0}
+    - target: {fileID: 8199468062402648068, guid: 58f1048973b976744852f2ed5584c1af, type: 3}
+      propertyPath: fishSpeciesId
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 8199468062402648068, guid: 58f1048973b976744852f2ed5584c1af, type: 3}
       propertyPath: customAttachPoint
@@ -4120,6 +4201,10 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3532924454517155150, guid: ab0ae89565904df4fa9a5cf4f3eb5b6f, type: 3}
+      propertyPath: fishSpeciesId
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3532924454517155150, guid: ab0ae89565904df4fa9a5cf4f3eb5b6f, type: 3}
       propertyPath: customAttachPoint
       value: 
       objectReference: {fileID: 1816874171}
@@ -4150,6 +4235,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerPickup
   handAttachPoint: {fileID: 1774647790}
+  fishAttachPoint: {fileID: 1816874171}
   pickupRadius: 2
   pickupableLayer:
     serializedVersion: 2

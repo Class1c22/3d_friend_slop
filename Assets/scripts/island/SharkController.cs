@@ -73,10 +73,16 @@ public class SharkController : MonoBehaviourPun
     [Header("VFX улюбленої риби (сердечка вгору)")]
     [Tooltip("Префаб Particle System з сердечками. Спавниться ЛОКАЛЬНО на кожному клієнті всередині ShowLikeMaterial(), який вже викликається з RPC_AddProgress(RpcTarget.All) - додаткового RPC не потрібно, ефект і так синхронний для всіх.")]
     public GameObject likeHeartsEffectPrefab;
-    [Tooltip("Точка спавну сердечок. Якщо не задано - трохи вище акули (transform.position + Vector3.up * 1.5).")]
+    [Tooltip("Точка спавну ефектів. Якщо не задано - трохи вище акули (transform.position + Vector3.up * 1.5). Використовується і для лайка, і для дизлайка.")]
     public Transform heartsSpawnPoint;
-    [Tooltip("Через скільки секунд знищити заспавнений об'єкт ефекту (має бути >= тривалості партиклів, щоб не обрізати анімацію).")]
+    [Tooltip("Через скільки секунд знищити заспавнений об'єкт ефекту лайка (має бути >= тривалості партиклів, щоб не обрізати анімацію).")]
     public float heartsEffectLifetime = 2.5f;
+
+    [Header("VFX нелюбої риби (гнівні риски)")]
+    [Tooltip("Префаб Particle System / об'єкт з 'гнівними рисками', що спавниться, коли рибу зараховано як НЕ улюблену (liked == false). Спавниться так само локально з RPC_AddProgress(RpcTarget.All), тобто синхронно на всіх клієнтах.")]
+    public GameObject dislikeEffectPrefab;
+    [Tooltip("Через скільки секунд знищити заспавнений об'єкт ефекту дизлайка.")]
+    public float dislikeEffectLifetime = 2.5f;
 
     private Material defaultMaterial;
     private Coroutine likeMaterialRoutine;
@@ -199,6 +205,8 @@ public class SharkController : MonoBehaviourPun
 
         if (liked)
             ShowLikeMaterial();
+        else
+            ShowDislikeEffect();
     }
 
     /// <summary>
@@ -248,6 +256,29 @@ public class SharkController : MonoBehaviourPun
 
         GameObject fx = Instantiate(likeHeartsEffectPrefab, pos, Quaternion.identity);
         Destroy(fx, heartsEffectLifetime);
+    }
+
+    /// <summary>
+    /// Викликається з RPC_AddProgress, коли liked == false (рибу зараховано
+    /// як НЕ улюблену). На відміну від лайка, матеріал акули тут НЕ міняється -
+    /// лише спавниться VFX "гнівних рисок". Так само локально на кожному
+    /// клієнті, синхронно, бо сам RPC_AddProgress вже прийшов з RpcTarget.All.
+    /// </summary>
+    private void ShowDislikeEffect()
+    {
+        SpawnDislikeEffect();
+    }
+
+    private void SpawnDislikeEffect()
+    {
+        if (dislikeEffectPrefab == null) return;
+
+        Vector3 pos = heartsSpawnPoint != null
+            ? heartsSpawnPoint.position
+            : transform.position + Vector3.up * 1.5f;
+
+        GameObject fx = Instantiate(dislikeEffectPrefab, pos, Quaternion.identity);
+        Destroy(fx, dislikeEffectLifetime);
     }
 
     void Update()
