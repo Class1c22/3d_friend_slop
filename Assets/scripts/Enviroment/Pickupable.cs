@@ -18,6 +18,9 @@ public class Pickupable : MonoBehaviourPun
     public Vector3 attachRotationOffset = Vector3.zero;
     public string equipAnimTrigger;
 
+    [Tooltip("Тільки для риби: ідентифікатор виду (напр. \"fish1\"..\"fish5\"). Однакове значення виставити вручну на кожному з 5 префабів риби - за ним акула визначає, чи любить саме цей вид (SharkController.allFishSpeciesIds).")]
+    public string fishSpeciesId;
+
     private Rigidbody rb;
     private Collider col;
     private Quaternion defaultWorldRotation;

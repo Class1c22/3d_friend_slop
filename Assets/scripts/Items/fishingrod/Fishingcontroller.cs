@@ -386,12 +386,24 @@ public class FishingController : MonoBehaviour
 
         Pickupable prefab = fishPrefabs[Random.Range(0, fishPrefabs.Length)];
 
+        if (!PhotonNetwork.InRoom)
+        {
+            Debug.LogWarning("[FishingController] Немає з'єднання з кімнатою - рибу не вдалось заспавнити (перевірте Run In Background / мережу).");
+            return;
+        }
+
         // PhotonNetwork.Instantiate замість звичайного Instantiate - інакше об'єкт
         // не отримує справжній PhotonView.ViewID (лишається 0), і будь-який подальший
         // RPC на ньому (напр. RPC_Drop при викиданні з інвентаря) мовчки провалюється
         // з помилкою "Illegal view ID:0", через що риба "зникає" назавжди.
         // Гравець, що зловив рибу, автоматично стає Owner цього об'єкта.
         GameObject fishGO = PhotonNetwork.Instantiate(prefab.name, transform.position, transform.rotation);
+        if (fishGO == null)
+        {
+            Debug.LogWarning("[FishingController] PhotonNetwork.Instantiate не вдався - рибу не спіймано.");
+            return;
+        }
+
         Pickupable fishInstance = fishGO.GetComponent<Pickupable>();
 
         // Одразу ховаємо як "предмет у кишені" і кладемо в перший вільний слот -

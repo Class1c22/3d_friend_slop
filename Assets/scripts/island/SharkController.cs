@@ -1,6 +1,7 @@
 using Photon.Pun;
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 // ВАЖЛИВО про мультиплеєр: акула - об'єкт сцени (не спавниться рантайм),
 // тому її PhotonView теж налаштований як "Scene Object" - власником
@@ -45,6 +46,25 @@ public class SharkController : MonoBehaviourPun
     public float swimBackDuration = 1f;
     public float visualForwardOffsetYFacingIsland = 0f;
 
+    [Header("Смаки акули (рандомізуються ОДИН РАЗ на весь ігровий сеанс, вирішує MasterClient)")]
+    [Tooltip("Усі 5 можливих видів риби - значення мають ТОЧНО збігатись із Pickupable.fishSpeciesId на префабах риби.")]
+    public string[] allFishSpeciesIds = new string[5];
+    [Tooltip("Скільки видів із allFishSpeciesIds акула ЛЮБИТЬ (прогрес +1). Решта видів вона НЕ любить (прогрес -1).")]
+    public int likedSpeciesCount = 2;
+    [Tooltip("Назва Trigger-параметра в Animator акули, що грає, коли риба їй сподобалась")]
+    public string likeTriggerName = "Like";
+    [Tooltip("Назва Trigger-параметра в Animator акули, що грає, коли риба їй НЕ сподобалась")]
+    public string dislikeTriggerName = "Dislike";
+    [Tooltip("Пауза між тригером 'Eat' і тригером 'Like'/'Dislike', щоб анімації не накладались одна на одну")]
+    public float reactionDelay = 1.5f;
+    [Tooltip("Прогрес-бар цього КОНКРЕТНОГО клієнта (кожен гравець бачить свій локальний UI-об'єкт з тим самим сценним ієрархічним шляхом) - призначити в інспекторі, а не передавати ззовні, бо через RPC не можна передати посилання на Unity-об'єкт.")]
+    public FishProgressBar progressBar;
+    [Tooltip("Скільки секунд максимум чекати RPC_SetLikedSpecies перед тим, як зарахувати рибу нейтрально (0), а не як 'не сподобалась' (-1). Захист від гонки на старті сесії.")]
+    public float maxPreferencesWaitSeconds = 3f;
+
+    private readonly HashSet<string> likedSpecies = new HashSet<string>();
+    private bool preferencesReady = false;
+
     private Animator animator;
     private float patrolAngle;
     private bool isBiting = false;
@@ -74,6 +94,76 @@ public class SharkController : MonoBehaviourPun
         }
 
         patrolAngle = Random.Range(0f, 360f);
+
+        StartCoroutine(WaitForRoomThenRollPreferences());
+    }
+
+    /// <summary>
+    /// Start() виконується одразу при завантаженні сцени - ЩЕ ДО того, як
+    /// NetworkManager встигає під'єднатись до Photon і зайти в кімнату.
+    /// Виклик RPC до цього моменту падає з помилкою "Cannot send messages
+    /// when not connected" і RPC_SetLikedSpecies ніколи не надсилається -
+    /// саме тому likedSpecies лишався порожнім увесь сеанс. Тому чекаємо
+    /// PhotonNetwork.InRoom і лише тоді рандомізуємо смаки.
+    /// </summary>
+    private IEnumerator WaitForRoomThenRollPreferences()
+    {
+        while (!PhotonNetwork.InRoom)
+            yield return null;
+
+        RollFoodPreferences();
+    }
+
+    /// <summary>
+    /// Викликається лише на MasterClient (див. виклик у Start()). Тасує
+    /// allFishSpeciesIds і бере перші likedSpeciesCount як "улюблені" -
+    /// один раз на весь ігровий сеанс. Результат розсилається ВСІМ через
+    /// buffered RPC, щоб (а) усі гравці бачили ОДНАКОВИЙ вибір акули,
+    /// і (б) гравець, що зайде в кімнату пізніше, теж одразу отримав
+    /// вже готовий результат (буферизований RPC повторюється новим клієнтам).
+    /// </summary>
+    private void RollFoodPreferences()
+    {
+        if (allFishSpeciesIds == null || allFishSpeciesIds.Length == 0)
+        {
+            Debug.LogWarning("[SharkController] allFishSpeciesIds порожній - неможливо визначити смаки акули.");
+            return;
+        }
+
+        List<string> shuffled = new List<string>(allFishSpeciesIds);
+        for (int i = shuffled.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+        }
+
+        int count = Mathf.Clamp(likedSpeciesCount, 0, shuffled.Count);
+        string[] liked = shuffled.GetRange(0, count).ToArray();
+
+        photonView.RPC(nameof(RPC_SetLikedSpecies), RpcTarget.AllBuffered, (object)liked);
+    }
+
+    [PunRPC]
+    private void RPC_SetLikedSpecies(string[] liked)
+    {
+        likedSpecies.Clear();
+        foreach (string id in liked)
+            likedSpecies.Add(id);
+
+        preferencesReady = true;
+
+        Debug.Log("[SharkController] Смаки акули визначено. Любить: " + string.Join(", ", liked));
+    }
+
+    [PunRPC]
+    private void RPC_AddProgress(int delta)
+    {
+        Debug.Log($"[SharkController] RPC_AddProgress отримано delta={delta} (likedSpecies зараз: [{string.Join(", ", likedSpecies)}], preferencesReady={preferencesReady})");
+
+        if (progressBar != null)
+            progressBar.AddFish(delta);
+        else
+            Debug.LogWarning("[SharkController] progressBar не призначено в інспекторі - неможливо оновити бар.");
     }
 
     void Update()
@@ -157,7 +247,7 @@ public class SharkController : MonoBehaviourPun
     }
 
     /// <summary>Викликається зовнішнім кодом поїдання риби. Має сенс лише на MasterClient.</summary>
-    public void RequestEatFish(Transform fish, FishProgressBar progressBar)
+    public void RequestEatFish(Transform fish)
     {
         if (!photonView.IsMine) return;
         if (isBiting || isEating) return;
@@ -166,12 +256,54 @@ public class SharkController : MonoBehaviourPun
         pendingTargetAngle = null;
         pendingOnImpact = null;
 
-        StartCoroutine(EatFishRoutine(fish, progressBar));
+        StartCoroutine(EatFishRoutine(fish));
     }
 
-    private IEnumerator EatFishRoutine(Transform fish, FishProgressBar progressBar)
+    private IEnumerator EatFishRoutine(Transform fish)
     {
         isEating = true;
+
+        // Визначаємо вид риби ДО Destroy() нижче, поки об'єкт ще існує.
+        string speciesId = null;
+        if (fish != null)
+        {
+            Pickupable pickupable = fish.GetComponent<Pickupable>();
+            if (pickupable != null)
+                speciesId = pickupable.fishSpeciesId;
+        }
+
+        if (string.IsNullOrEmpty(speciesId))
+            Debug.LogWarning($"[SharkController] У риби '{fish?.name}' не задано fishSpeciesId - вважаю, що акулі вона не смакує.");
+
+        // Захист від гонки: якщо RPC_SetLikedSpecies ще не долетів (наприклад,
+        // риба з'їдена одразу на старті сесії), почекаємо трохи, а не одразу
+        // рахуємо рибу "нелюбою" (-1). Якщо смаки так і не прийшли за
+        // maxPreferencesWaitSeconds - це, найімовірніше, проблема конфігурації
+        // (allFishSpeciesIds/likedSpeciesCount в інспекторі), і краще зарахувати
+        // рибу нейтрально (0), ніж систематично займати прогрес у мінус.
+        bool preferencesTimedOut = false;
+        if (!preferencesReady)
+        {
+            float waited = 0f;
+            while (!preferencesReady && waited < maxPreferencesWaitSeconds)
+            {
+                waited += Time.deltaTime;
+                yield return null;
+            }
+
+            if (!preferencesReady)
+            {
+                preferencesTimedOut = true;
+                Debug.LogError("[SharkController] Смаки акули (likedSpecies) так і не прийшли за " +
+                    maxPreferencesWaitSeconds + " сек. Перевір allFishSpeciesIds/likedSpeciesCount в " +
+                    "інспекторі та значення Pickupable.fishSpeciesId на префабах риби. Ця риба буде " +
+                    "зарахована нейтрально (0), щоб не псувати прогрес.");
+            }
+        }
+
+        bool liked = !preferencesTimedOut && !string.IsNullOrEmpty(speciesId) && likedSpecies.Contains(speciesId);
+
+        Debug.Log($"[SharkController] Риба з'їдена: speciesId='{speciesId}', likedSpecies=[{string.Join(", ", likedSpecies)}], liked={liked}, preferencesTimedOut={preferencesTimedOut}");
 
         Vector3 circleReturnPos = transform.position;
         Quaternion circleReturnRot = transform.rotation;
@@ -220,10 +352,17 @@ public class SharkController : MonoBehaviourPun
         if (fish != null)
             Destroy(fish.gameObject);
 
-        if (progressBar != null)
-            progressBar.AddFish(1);
+        // Пауза перед реакцією - щоб анімація "Eat" встигла зіграти
+        // окремо від наступної "Like"/"Dislike".
+        yield return new WaitForSeconds(reactionDelay);
 
-        yield return new WaitForSeconds(eatHoldDuration);
+        animator.SetTrigger(preferencesTimedOut ? dislikeTriggerName : (liked ? likeTriggerName : dislikeTriggerName));
+
+        int delta = preferencesTimedOut ? 0 : (liked ? 1 : -1);
+        photonView.RPC(nameof(RPC_AddProgress), RpcTarget.All, delta);
+
+        float remainingHold = Mathf.Max(0f, eatHoldDuration - reactionDelay);
+        yield return new WaitForSeconds(remainingHold);
 
         forcedPos = null;
         forcedRot = null;

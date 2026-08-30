@@ -4,6 +4,8 @@ using UnityEngine;
 public class PlayerPickup : MonoBehaviourPun
 {
     public Transform handAttachPoint;
+    [Tooltip("Окрема точка кріплення для риби (замість handAttachPoint) - призначити тут, напряму на гравці, а НЕ на префабі риби. Prefab-асет не може надійно зберігати посилання на об'єкт сцени (як pickFish), тому таке посилання після PhotonNetwork.Instantiate обнулялось і риба падала назад на handAttachPoint.")]
+    public Transform fishAttachPoint;
     public float pickupRadius = 2f;
     public LayerMask pickupableLayer;
     public HandAnimatorController handAnimatorController;
@@ -138,9 +140,7 @@ public class PlayerPickup : MonoBehaviourPun
 
     private void EquipItem(Pickupable item)
     {
-        Transform attachTarget = item.customAttachPoint != null
-            ? item.customAttachPoint
-            : handAttachPoint;
+        Transform attachTarget = ResolveAttachPoint(item);
 
         item.PickUp(attachTarget);
         currentlyHeld = item;
@@ -153,6 +153,25 @@ public class PlayerPickup : MonoBehaviourPun
             bool isFishingRod = item.equipAnimTrigger == fishingRodTriggerName;
             handAnimatorController.SetFishingEquipped(isFishingRod);
         }
+    }
+
+    /// <summary>
+    /// Обирає, куди прикріпити предмет у руці. Риба (тег "Fish") завжди йде в
+    /// fishAttachPoint (pickFish), якщо він призначений на гравці - це надійніше,
+    /// ніж item.customAttachPoint на самому префабі риби, бо той не переживає
+    /// PhotonNetwork.Instantiate (посилання на об'єкт сцени на prefab-асеті
+    /// обнуляється). Для решти предметів - як і раніше: customAttachPoint,
+    /// якщо заданий, інакше загальний handAttachPoint.
+    /// </summary>
+    private Transform ResolveAttachPoint(Pickupable item)
+    {
+        if (item.CompareTag("Fish") && fishAttachPoint != null)
+            return fishAttachPoint;
+
+        if (item.customAttachPoint != null)
+            return item.customAttachPoint;
+
+        return handAttachPoint;
     }
 
     void ThrowCurrent()

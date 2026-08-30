@@ -153,6 +153,7 @@ MonoBehaviour:
   attachPositionOffset: {x: 0, y: 0, z: 0}
   attachRotationOffset: {x: 0, y: 0, z: 0}
   equipAnimTrigger: IsHolding
+  fishSpeciesId: 1
 --- !u!54 &1303653791527605556
 Rigidbody:
   m_ObjectHideFlags: 0

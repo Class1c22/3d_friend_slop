@@ -153,6 +153,7 @@ MonoBehaviour:
   attachPositionOffset: {x: 0, y: 0, z: 0}
   attachRotationOffset: {x: 0, y: 0, z: 0}
   equipAnimTrigger: IsHolding
+  fishSpeciesId: 4
 --- !u!54 &4967419026115907009
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -199,6 +200,6 @@ MonoBehaviour:
   OwnershipTransfer: 1
   observableSearch: 2
   ObservedComponents: []
-  sceneViewId: 10
+  sceneViewId: 0
   InstantiationId: 0
   isRuntimeInstantiated: 0

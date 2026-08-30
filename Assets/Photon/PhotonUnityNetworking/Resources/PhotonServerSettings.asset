@@ -42,6 +42,10 @@ MonoBehaviour:
   - DestroySpaceship
   - Fire
   - RespawnSpaceship
+  - RPC_BiteAt
+  - RPC_ConfirmPickup
+  - RPC_Drop
+  - RPC_RequestPickup
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1
