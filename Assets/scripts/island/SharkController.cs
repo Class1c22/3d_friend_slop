@@ -62,6 +62,17 @@ public class SharkController : MonoBehaviourPun
     [Tooltip("Скільки секунд максимум чекати RPC_SetLikedSpecies перед тим, як зарахувати рибу нейтрально (0), а не як 'не сподобалась' (-1). Захист від гонки на старті сесії.")]
     public float maxPreferencesWaitSeconds = 3f;
 
+    [Header("Візуальна реакція (матеріал акули при 'улюбленій' рибі)")]
+    [Tooltip("Renderer акули, чий матеріал змінюється. Якщо не задано - буде знайдено автоматично через GetComponentInChildren<Renderer>().")]
+    public Renderer sharkRenderer;
+    [Tooltip("Матеріал, що вмикається на короткий час, коли акула з'їла улюблену рибу.")]
+    public Material likeMaterial;
+    [Tooltip("Скільки секунд тримати 'улюблений' матеріал, перш ніж повернути стандартний.")]
+    public float likeMaterialDuration = 2f;
+
+    private Material defaultMaterial;
+    private Coroutine likeMaterialRoutine;
+
     private readonly HashSet<string> likedSpecies = new HashSet<string>();
     private bool preferencesReady = false;
 
@@ -85,6 +96,14 @@ public class SharkController : MonoBehaviourPun
         if (orbitCenter == null)
             Debug.LogWarning("[SharkController] Orbit Center не задано - акула не буде патрулювати.");
 
+        if (sharkRenderer == null)
+            sharkRenderer = GetComponentInChildren<Renderer>();
+
+        if (sharkRenderer != null)
+            defaultMaterial = sharkRenderer.sharedMaterial;
+        else
+            Debug.LogWarning("[SharkController] Не знайдено Renderer - зміна матеріалу при уподобаній рибі працювати не буде.");
+
         if (!photonView.IsMine)
         {
             // Ми не MasterClient - не ініціалізуємо власний patrolAngle рандомом
@@ -95,32 +114,19 @@ public class SharkController : MonoBehaviourPun
 
         patrolAngle = Random.Range(0f, 360f);
 
-        StartCoroutine(WaitForRoomThenRollPreferences());
-    }
-
-    /// <summary>
-    /// Start() виконується одразу при завантаженні сцени - ЩЕ ДО того, як
-    /// NetworkManager встигає під'єднатись до Photon і зайти в кімнату.
-    /// Виклик RPC до цього моменту падає з помилкою "Cannot send messages
-    /// when not connected" і RPC_SetLikedSpecies ніколи не надсилається -
-    /// саме тому likedSpecies лишався порожнім увесь сеанс. Тому чекаємо
-    /// PhotonNetwork.InRoom і лише тоді рандомізуємо смаки.
-    /// </summary>
-    private IEnumerator WaitForRoomThenRollPreferences()
-    {
-        while (!PhotonNetwork.InRoom)
-            yield return null;
-
         RollFoodPreferences();
     }
 
     /// <summary>
     /// Викликається лише на MasterClient (див. виклик у Start()). Тасує
-    /// allFishSpeciesIds і бере перші likedSpeciesCount як "улюблені" -
-    /// один раз на весь ігровий сеанс. Результат розсилається ВСІМ через
-    /// buffered RPC, щоб (а) усі гравці бачили ОДНАКОВИЙ вибір акули,
-    /// і (б) гравець, що зайде в кімнату пізніше, теж одразу отримав
-    /// вже готовий результат (буферизований RPC повторюється новим клієнтам).
+    /// allFishSpeciesIds і бере перші likedSpeciesCount як "улюблені".
+    /// ВАЖЛИВО: результат застосовується ЛОКАЛЬНО одразу (синхронно, без
+    /// чекання на власний RPC), тому MasterClient може коректно їсти рибу
+    /// з першої ж секунди - незалежно від того, коли (і чи взагалі) він уже
+    /// підключений до Photon. RPC потрібен лише щоб розповісти про смаки
+    /// ІНШИМ гравцям (для їхнього UI/анімацій) і буферизується для тих,
+    /// хто зайде в кімнату пізніше - його відправка чекає на PhotonNetwork.InRoom,
+    /// інакше виклик падає з "Cannot send messages when not connected".
     /// </summary>
     private void RollFoodPreferences()
     {
@@ -140,11 +146,23 @@ public class SharkController : MonoBehaviourPun
         int count = Mathf.Clamp(likedSpeciesCount, 0, shuffled.Count);
         string[] liked = shuffled.GetRange(0, count).ToArray();
 
-        photonView.RPC(nameof(RPC_SetLikedSpecies), RpcTarget.AllBuffered, (object)liked);
+        // Застосовуємо одразу локально - MasterClient не залежить від мережі,
+        // щоб знати власне рішення.
+        ApplyLikedSpecies(liked);
+
+        // А цим ділимося з рештою гравців, коли мережа справді готова.
+        StartCoroutine(BroadcastLikedSpeciesWhenReady(liked));
     }
 
-    [PunRPC]
-    private void RPC_SetLikedSpecies(string[] liked)
+    private IEnumerator BroadcastLikedSpeciesWhenReady(string[] liked)
+    {
+        while (!PhotonNetwork.InRoom)
+            yield return null;
+
+        photonView.RPC(nameof(RPC_SetLikedSpecies), RpcTarget.OthersBuffered, (object)liked);
+    }
+
+    private void ApplyLikedSpecies(string[] liked)
     {
         likedSpecies.Clear();
         foreach (string id in liked)
@@ -156,14 +174,51 @@ public class SharkController : MonoBehaviourPun
     }
 
     [PunRPC]
-    private void RPC_AddProgress(int delta)
+    private void RPC_SetLikedSpecies(string[] liked)
     {
-        Debug.Log($"[SharkController] RPC_AddProgress отримано delta={delta} (likedSpecies зараз: [{string.Join(", ", likedSpecies)}], preferencesReady={preferencesReady})");
+        ApplyLikedSpecies(liked);
+    }
+
+    [PunRPC]
+    private void RPC_AddProgress(int delta, bool liked)
+    {
+        Debug.Log($"[SharkController] RPC_AddProgress отримано delta={delta}, liked={liked} (likedSpecies зараз: [{string.Join(", ", likedSpecies)}], preferencesReady={preferencesReady})");
 
         if (progressBar != null)
             progressBar.AddFish(delta);
         else
             Debug.LogWarning("[SharkController] progressBar не призначено в інспекторі - неможливо оновити бар.");
+
+        if (liked)
+            ShowLikeMaterial();
+    }
+
+    /// <summary>
+    /// Тимчасово перемикає матеріал акули на likeMaterial, а через
+    /// likeMaterialDuration повертає стандартний. Викликається з
+    /// RPC_AddProgress, тобто виконується ОДНАКОВО на всіх клієнтах.
+    /// </summary>
+    private void ShowLikeMaterial()
+    {
+        if (sharkRenderer == null || likeMaterial == null)
+            return;
+
+        if (likeMaterialRoutine != null)
+            StopCoroutine(likeMaterialRoutine);
+
+        likeMaterialRoutine = StartCoroutine(LikeMaterialRoutine());
+    }
+
+    private IEnumerator LikeMaterialRoutine()
+    {
+        sharkRenderer.material = likeMaterial;
+
+        yield return new WaitForSeconds(likeMaterialDuration);
+
+        if (sharkRenderer != null && defaultMaterial != null)
+            sharkRenderer.material = defaultMaterial;
+
+        likeMaterialRoutine = null;
     }
 
     void Update()
@@ -359,7 +414,7 @@ public class SharkController : MonoBehaviourPun
         animator.SetTrigger(preferencesTimedOut ? dislikeTriggerName : (liked ? likeTriggerName : dislikeTriggerName));
 
         int delta = preferencesTimedOut ? 0 : (liked ? 1 : -1);
-        photonView.RPC(nameof(RPC_AddProgress), RpcTarget.All, delta);
+        photonView.RPC(nameof(RPC_AddProgress), RpcTarget.All, delta, liked);
 
         float remainingHold = Mathf.Max(0f, eatHoldDuration - reactionDelay);
         yield return new WaitForSeconds(remainingHold);
