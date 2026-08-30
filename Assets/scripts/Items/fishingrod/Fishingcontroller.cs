@@ -1,4 +1,5 @@
 using System.Collections;
+using Photon.Pun;
 using UnityEngine;
 
 /// <summary>
@@ -93,7 +94,7 @@ public class FishingController : MonoBehaviour
     [Tooltip("За скільки секунд леска змотується назад, коли риба зірвалась або гравець сам скасував закидання")]
     public float reelInOnMissDuration = 0.5f;
 
-    [Header("Риба (перетягни сюди 5 префабів Pickupable-риб)")]
+    [Header("Риба (перетягни сюди 5 префабів Pickupable-риб). ВАЖЛИВО: усі префаби мають лежати в папці Resources - інакше PhotonNetwork.Instantiate їх не знайде.")]
     public Pickupable[] fishPrefabs;
 
     private FishingState state = FishingState.Idle;
@@ -385,9 +386,28 @@ public class FishingController : MonoBehaviour
 
         Pickupable prefab = fishPrefabs[Random.Range(0, fishPrefabs.Length)];
 
-        // Створюємо саме інстанс (а не сам ассет), одразу ховаємо його як "предмет у кишені"
-        // і кладемо в перший вільний слот - так само, як звичайний підбір через PlayerPickup.
-        Pickupable fishInstance = Instantiate(prefab);
+        if (!PhotonNetwork.InRoom)
+        {
+            Debug.LogWarning("[FishingController] Немає з'єднання з кімнатою - рибу не вдалось заспавнити (перевірте Run In Background / мережу).");
+            return;
+        }
+
+        // PhotonNetwork.Instantiate замість звичайного Instantiate - інакше об'єкт
+        // не отримує справжній PhotonView.ViewID (лишається 0), і будь-який подальший
+        // RPC на ньому (напр. RPC_Drop при викиданні з інвентаря) мовчки провалюється
+        // з помилкою "Illegal view ID:0", через що риба "зникає" назавжди.
+        // Гравець, що зловив рибу, автоматично стає Owner цього об'єкта.
+        GameObject fishGO = PhotonNetwork.Instantiate(prefab.name, transform.position, transform.rotation);
+        if (fishGO == null)
+        {
+            Debug.LogWarning("[FishingController] PhotonNetwork.Instantiate не вдався - рибу не спіймано.");
+            return;
+        }
+
+        Pickupable fishInstance = fishGO.GetComponent<Pickupable>();
+
+        // Одразу ховаємо як "предмет у кишені" і кладемо в перший вільний слот -
+        // так само, як звичайний підбір через PlayerPickup.
         fishInstance.Store();
         inventoryManager.AddItem(fishInstance);
 

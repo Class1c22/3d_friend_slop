@@ -10,6 +10,11 @@ using UnityEngine.UI;
 /// Тут же зберігається, який саме Pickupable лежить у кожному слоті (AddItem/RemoveItem),
 /// і генеруються події OnEquip/OnUnequip, на які підписується PlayerPickup, щоб фізично
 /// показати/прибрати предмет з руки, коли змінюється обраний слот.
+///
+/// МЕРЕЖА: цей скрипт НЕ синхронізується по Photon - кожен гравець бачить
+/// і керує лише своїм власним інвентарем. GameObject/Canvas з цим скриптом
+/// вимикається на чужих копіях аватара через PlayerRig.cs (photonView.IsMine),
+/// тому Update() тут ніколи не читає чужий scroll-input.
 /// </summary>
 public class InventoryManager : MonoBehaviour
 {

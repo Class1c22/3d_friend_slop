@@ -1,135 +1,298 @@
+using Photon.Pun;
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
-// Керує рухом і анімацією акули.
-// Патрулювання: акула рухається по ідеальному колу навколо orbitCenter -
-// patrolAngle безперервно зростає (1°, 2°, 3° ... 360°, 361° ...), Mathf.Cos/Sin
-// самі коректно "загортають" кут, тому коло ніколи не рветься само по собі.
+// ВАЖЛИВО про мультиплеєр: акула - об'єкт сцени (не спавниться рантайм),
+// тому її PhotonView теж налаштований як "Scene Object" - власником
+// автоматично є поточний MasterClient, отже photonView.IsMine тут
+// еквівалентно PhotonNetwork.IsMasterClient.
 //
-// Укус: SharkBiteController задає бажаний градус на колі (RequestBite). Акула
-// продовжує пливти звичайним патрулюванням, доки не ДОСЯГНЕ саме цього градуса -
-// в цей момент вона зупиняється, грає анімацію Bite, в потрібну мить викликає
-// callback (яким HeightmapIsland "відкушує" шматок острова саме в цьому напрямку),
-// трохи "їсть" на місці, а потім продовжує патрулювання далі по колу.
-//
-// Поїдання риби: WaterFishZone задає позицію риби, яка впала в море (RequestEatFish).
-// Акула перериває патрулювання, телепортується до риби (але не ближче
-// minEatDistanceFromIsland до острова - див. нижче), повертається обличчям
-// до острова (а не до самої риби) і УТРИМУЄ цей поворот примусово кожен кадр,
-// поки їсть - потім повертається на те саме місце на колі і продовжує звичайне
-// патрулювання.
-//
-// ВАЖЛИВО про Animator: якщо в Animator Controller увімкнено "Apply Root Motion",
-// то анімація "Eat"/"Bite" може сама рухати й повертати об'єкт, і робить це
-// ПІСЛЯ Update() (в тій же фазі, що LateUpdate) - тобто перезаписує будь-який
-// transform.rotation/position, виставлений тут в Update() чи в корутині. Щоб
-// цього гарантовано не відбувалось, скрипт (1) вимикає applyRootMotion сам,
-// і (2) для підстраховки ще раз примусово виставляє позу в LateUpdate(),
-// яка виконується вже точно після аніматора.
-//
-// Пріоритет: якщо в момент падіння риби акула ще тільки ЗАПЛАНУВАЛА укус
-// (пливе до потрібного градуса, але ще не почала кусати) - риба скасовує
-// цей план, і акула йде їсти рибу. Якщо акула вже ФАКТИЧНО кусає/жує острів
-// (isBiting = true) - запит на рибу ігнорується, риба почекає наступного разу.
-//
-// ВИПРАВЛЕННЯ "акула боком до острова": у попередній версії, коли риба падала
-// близько до острова, точка поїдання відсувалась назовні вздовж лінії
-// "острів -> риба". Якщо ця лінія була майже нульової довжини (риба впала
-// майже точно над orbitCenter по X/Z), код підставляв ДОВІЛЬНИЙ світовий
-// напрямок (Vector3.forward), що й розвертало акулу невідомо куди. Тепер
-// пуш відбувається, тільки якщо напрямок "острів -> риба" визначений
-// (distFromCenter > 0.01), інакше позиція риби лишається як є - а
-// faceIslandRot однаково рахується коректно (завжди дивиться на orbitCenter).
-[RequireComponent(typeof(Animator))]
-public class SharkController : MonoBehaviour
+// Лише MasterClient РЕАЛЬНО рухає акулу (Patrol/Update/LateUpdate нижче).
+// На інших клієнтах цей скрипт не чіпає transform взагалі - позиція й
+// поворот приходять по мережі через Photon Transform View (додати в
+// інспекторі на PhotonView акули -> Observed Components), а тригери
+// анімації (Bite/Eat/EatFish) - через Photon Animator View або явний RPC
+// (див. TODO нижче), інакше на екранах гравців акула або не рухається,
+// або в кожного пливе по-своєму й кусає в різний час.
+[RequireComponent(typeof(Animator), typeof(PhotonView))]
+public class SharkController : MonoBehaviourPun
 {
     [Header("Патрулювання (коло навколо порожнього об'єкта)")]
-    [Tooltip("Порожній GameObject, поставлений в центр острова. Акула завжди рухається строго по колу навколо нього.")]
     public Transform orbitCenter;
-    [Tooltip("Радіус кола патрулювання - постав з запасом, щоб акула не залазила на острів")]
     public float patrolRadius = 25f;
     public float patrolHeight = 2f;
-    public float patrolSpeed = 15f;        // градусів за секунду навколо orbitCenter
-    public float patrolBobAmplitude = 0.5f; // легке гойдання вгору-вниз на плаву
+    public float patrolSpeed = 15f;
+    public float patrolBobAmplitude = 0.5f;
     public float patrolBobSpeed = 1f;
     public float rotateSpeed = 5f;
-    [Tooltip("Якщо ніс моделі акули НЕ дивиться туди, куди Unity вважає 'вперед' (local Z) - модель буде поверта" +
-             "тись боком замість носа. Підбери тут кут (найчастіше 90, -90 або 180), щоб компенсувати це - " +
-             "застосовується і до патрулювання, і до повороту обличчям до острова під час поїдання риби.")]
     public float visualForwardOffsetY = 0f;
 
     [Header("Укус (зупинка на потрібному градусі)")]
-    [Tooltip("Назва тригера в Animator Controller, що вмикає анімацію укусу")]
     public string biteTriggerName = "Bite";
-    [Tooltip("Частка тривалості укусу (0..1), в яку відбувається фактичне 'вгризання' в острів")]
     [Range(0f, 1f)] public float biteImpactFraction = 0.4f;
 
     [Header("Поїдання (після укусу, акула стоїть на місці)")]
-    [Tooltip("Назва тригера в Animator Controller, що вмикає анімацію поїдання")]
     public string eatTriggerName = "Eat";
-    [Tooltip("Скільки секунд акула лишається на місці і 'жує', перш ніж продовжити патрулювання")]
     public float eatHoldDuration = 4f;
-    [Tooltip("Амплітуда легкого потрушування головою під час поїдання (щоб не виглядало як застигання)")]
     public float eatShakeAmplitude = 0.15f;
     public float eatShakeSpeed = 6f;
 
     [Header("Поїдання риби в морі")]
-    [Tooltip("Мінімальна відстань (по горизонталі) від orbitCenter, на якій акула з'їдає рибу. Якщо риба " +
-             "впала ближче до берега, ніж це значення - точку поїдання відсуваємо назовні вздовж лінії " +
-             "'острів -> риба', щоб акула завжди їла у відкритій воді, а не 'в'їжджала' в пісок/рельєф острова. " +
-             "Тримай трохи меншим за patrolRadius (напр. 0.7-0.8 від нього), інакше акула виїде за межі свого кола.")]
     public float minEatDistanceFromIsland = 20f;
-    [Tooltip("Назва тригера в Animator Controller саме для поїдання РИБИ (окремо від eatTriggerName, який грає після укусу острова)")]
     public string eatFishTriggerName = "EatFish";
-    [Tooltip("Швидкість, з якою акула пливе напряму до впалої риби (не використовується при телепорті, лишено про запас)")]
     public float eatFishSwimSpeed = 8f;
-    [Tooltip("На якій відстані до риби акула вважає, що доплила і може її з'їсти (не використовується при телепорті)")]
     public float eatFishStopDistance = 1.2f;
-    [Tooltip("Скільки секунд триває плавне повернення на коло після поїдання риби (не використовується при телепорті)")]
     public float swimBackDuration = 1f;
-    [Tooltip("Додаткова корекція повороту (у градусах) лише для 'обличчям до острова' під час поїдання риби - " +
-             "якщо після виправлення акула все одно стоїть боком, покрути це значення в Play Mode, поки не " +
-             "знайдеш правильний кут. Патрулювання ця корекція не торкається (там лишається visualForwardOffsetY).")]
     public float visualForwardOffsetYFacingIsland = 0f;
+
+    [Header("Смаки акули (рандомізуються ОДИН РАЗ на весь ігровий сеанс, вирішує MasterClient)")]
+    [Tooltip("Усі 5 можливих видів риби - значення мають ТОЧНО збігатись із Pickupable.fishSpeciesId на префабах риби.")]
+    public string[] allFishSpeciesIds = new string[5];
+    [Tooltip("Скільки видів із allFishSpeciesIds акула ЛЮБИТЬ (прогрес +1). Решта видів вона НЕ любить (прогрес -1).")]
+    public int likedSpeciesCount = 2;
+    [Tooltip("Назва Trigger-параметра в Animator акули, що грає, коли риба їй сподобалась")]
+    public string likeTriggerName = "Like";
+    [Tooltip("Назва Trigger-параметра в Animator акули, що грає, коли риба їй НЕ сподобалась")]
+    public string dislikeTriggerName = "Dislike";
+    [Tooltip("Пауза між тригером 'Eat' і тригером 'Like'/'Dislike', щоб анімації не накладались одна на одну")]
+    public float reactionDelay = 1.5f;
+    [Tooltip("Прогрес-бар цього КОНКРЕТНОГО клієнта (кожен гравець бачить свій локальний UI-об'єкт з тим самим сценним ієрархічним шляхом) - призначити в інспекторі, а не передавати ззовні, бо через RPC не можна передати посилання на Unity-об'єкт.")]
+    public FishProgressBar progressBar;
+    [Tooltip("Скільки секунд максимум чекати RPC_SetLikedSpecies перед тим, як зарахувати рибу нейтрально (0), а не як 'не сподобалась' (-1). Захист від гонки на старті сесії.")]
+    public float maxPreferencesWaitSeconds = 3f;
+
+    [Header("Візуальна реакція (матеріал акули при 'улюбленій' рибі)")]
+    [Tooltip("Renderer акули, чий матеріал змінюється. Якщо не задано - буде знайдено автоматично через GetComponentInChildren<Renderer>().")]
+    public Renderer sharkRenderer;
+    [Tooltip("Матеріал, що вмикається на короткий час, коли акула з'їла улюблену рибу.")]
+    public Material likeMaterial;
+    [Tooltip("Скільки секунд тримати 'улюблений' матеріал, перш ніж повернути стандартний.")]
+    public float likeMaterialDuration = 2f;
+
+    [Header("VFX улюбленої риби (сердечка вгору)")]
+    [Tooltip("Префаб Particle System з сердечками. Спавниться ЛОКАЛЬНО на кожному клієнті всередині ShowLikeMaterial(), який вже викликається з RPC_AddProgress(RpcTarget.All) - додаткового RPC не потрібно, ефект і так синхронний для всіх.")]
+    public GameObject likeHeartsEffectPrefab;
+    [Tooltip("Точка спавну ефектів. Якщо не задано - трохи вище акули (transform.position + Vector3.up * 1.5). Використовується і для лайка, і для дизлайка.")]
+    public Transform heartsSpawnPoint;
+    [Tooltip("Через скільки секунд знищити заспавнений об'єкт ефекту лайка (має бути >= тривалості партиклів, щоб не обрізати анімацію).")]
+    public float heartsEffectLifetime = 2.5f;
+
+    [Header("VFX нелюбої риби (гнівні риски)")]
+    [Tooltip("Префаб Particle System / об'єкт з 'гнівними рисками', що спавниться, коли рибу зараховано як НЕ улюблену (liked == false). Спавниться так само локально з RPC_AddProgress(RpcTarget.All), тобто синхронно на всіх клієнтах.")]
+    public GameObject dislikeEffectPrefab;
+    [Tooltip("Через скільки секунд знищити заспавнений об'єкт ефекту дизлайка.")]
+    public float dislikeEffectLifetime = 2.5f;
+
+    private Material defaultMaterial;
+    private Coroutine likeMaterialRoutine;
+
+    private readonly HashSet<string> likedSpecies = new HashSet<string>();
+    private bool preferencesReady = false;
 
     private Animator animator;
     private float patrolAngle;
     private bool isBiting = false;
     private bool isEating = false;
 
-    // Кут (у тій самій "необгорнутій" шкалі, що й patrolAngle), на якому треба зупинитись і вкусити.
     private float? pendingTargetAngle = null;
     private System.Action pendingOnImpact;
     private float pendingBiteDuration;
 
-    // Коли задано - LateUpdate() примусово виставляє САМЕ цю позицію/поворот
-    // щокадру, вже ПІСЛЯ того, як Animator (навіть з root motion) відпрацював.
-    // Це підстраховка на випадок, якщо root motion все ж десь увімкнеться.
     private Vector3? forcedPos;
     private Quaternion? forcedRot;
 
     void Start()
     {
         animator = GetComponent<Animator>();
-        patrolAngle = Random.Range(0f, 360f);
-
-        // Скрипт сам повністю керує рухом і поворотом акули - root motion
-        // з анімацій (Bite/Eat) не повинен нічого змінювати в transform,
-        // інакше він перезапише наш поворот "обличчям до острова".
         animator.applyRootMotion = false;
 
         if (orbitCenter == null)
-            Debug.LogWarning("[SharkController] Orbit Center не задано - акула не буде патрулювати. Створи порожній GameObject в центрі острова і перетягни його сюди.");
+            Debug.LogWarning("[SharkController] Orbit Center не задано - акула не буде патрулювати.");
+
+        if (sharkRenderer == null)
+            sharkRenderer = GetComponentInChildren<Renderer>();
+
+        if (sharkRenderer != null)
+            defaultMaterial = sharkRenderer.sharedMaterial;
+        else
+            Debug.LogWarning("[SharkController] Не знайдено Renderer - зміна матеріалу при уподобаній рибі працювати не буде.");
+
+        if (!photonView.IsMine)
+        {
+            // Ми не MasterClient - не ініціалізуємо власний patrolAngle рандомом
+            // (він все одно ігнорується, бо Update()/LateUpdate() нижче виходять
+            // одразу для не-власника; позицію дає Photon Transform View).
+            return;
+        }
+
+        patrolAngle = Random.Range(0f, 360f);
+
+        RollFoodPreferences();
+    }
+
+    /// <summary>
+    /// Викликається лише на MasterClient (див. виклик у Start()). Тасує
+    /// allFishSpeciesIds і бере перші likedSpeciesCount як "улюблені".
+    /// ВАЖЛИВО: результат застосовується ЛОКАЛЬНО одразу (синхронно, без
+    /// чекання на власний RPC), тому MasterClient може коректно їсти рибу
+    /// з першої ж секунди - незалежно від того, коли (і чи взагалі) він уже
+    /// підключений до Photon. RPC потрібен лише щоб розповісти про смаки
+    /// ІНШИМ гравцям (для їхнього UI/анімацій) і буферизується для тих,
+    /// хто зайде в кімнату пізніше - його відправка чекає на PhotonNetwork.InRoom,
+    /// інакше виклик падає з "Cannot send messages when not connected".
+    /// </summary>
+    private void RollFoodPreferences()
+    {
+        if (allFishSpeciesIds == null || allFishSpeciesIds.Length == 0)
+        {
+            Debug.LogWarning("[SharkController] allFishSpeciesIds порожній - неможливо визначити смаки акули.");
+            return;
+        }
+
+        List<string> shuffled = new List<string>(allFishSpeciesIds);
+        for (int i = shuffled.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+        }
+
+        int count = Mathf.Clamp(likedSpeciesCount, 0, shuffled.Count);
+        string[] liked = shuffled.GetRange(0, count).ToArray();
+
+        // Застосовуємо одразу локально - MasterClient не залежить від мережі,
+        // щоб знати власне рішення.
+        ApplyLikedSpecies(liked);
+
+        // А цим ділимося з рештою гравців, коли мережа справді готова.
+        StartCoroutine(BroadcastLikedSpeciesWhenReady(liked));
+    }
+
+    private IEnumerator BroadcastLikedSpeciesWhenReady(string[] liked)
+    {
+        while (!PhotonNetwork.InRoom)
+            yield return null;
+
+        photonView.RPC(nameof(RPC_SetLikedSpecies), RpcTarget.OthersBuffered, (object)liked);
+    }
+
+    private void ApplyLikedSpecies(string[] liked)
+    {
+        likedSpecies.Clear();
+        foreach (string id in liked)
+            likedSpecies.Add(id);
+
+        preferencesReady = true;
+
+        Debug.Log("[SharkController] Смаки акули визначено. Любить: " + string.Join(", ", liked));
+    }
+
+    [PunRPC]
+    private void RPC_SetLikedSpecies(string[] liked)
+    {
+        ApplyLikedSpecies(liked);
+    }
+
+    [PunRPC]
+    private void RPC_AddProgress(int delta, bool liked)
+    {
+        Debug.Log($"[SharkController] RPC_AddProgress отримано delta={delta}, liked={liked} (likedSpecies зараз: [{string.Join(", ", likedSpecies)}], preferencesReady={preferencesReady})");
+
+        if (progressBar != null)
+            progressBar.AddFish(delta);
+        else
+            Debug.LogWarning("[SharkController] progressBar не призначено в інспекторі - неможливо оновити бар.");
+
+        if (liked)
+            ShowLikeMaterial();
+        else
+            ShowDislikeEffect();
+    }
+
+    /// <summary>
+    /// Тимчасово перемикає матеріал акули на likeMaterial, а через
+    /// likeMaterialDuration повертає стандартний, і спавнить VFX сердечок.
+    /// Викликається з RPC_AddProgress, тобто виконується ОДНАКОВО на всіх
+    /// клієнтах - додаткового RPC для самого ефекту не потрібно.
+    /// </summary>
+    private void ShowLikeMaterial()
+    {
+        if (sharkRenderer != null && likeMaterial != null)
+        {
+            if (likeMaterialRoutine != null)
+                StopCoroutine(likeMaterialRoutine);
+
+            likeMaterialRoutine = StartCoroutine(LikeMaterialRoutine());
+        }
+
+        SpawnLikeHearts();
+    }
+
+    private IEnumerator LikeMaterialRoutine()
+    {
+        sharkRenderer.material = likeMaterial;
+
+        yield return new WaitForSeconds(likeMaterialDuration);
+
+        if (sharkRenderer != null && defaultMaterial != null)
+            sharkRenderer.material = defaultMaterial;
+
+        likeMaterialRoutine = null;
+    }
+
+    /// <summary>
+    /// Спавнить одноразовий партикл-ефект (сердечка) над акулою.
+    /// Викликається локально на кожному клієнті з ShowLikeMaterial(),
+    /// яка сама вже викликана через RPC_AddProgress(RpcTarget.All) -
+    /// тому ефект з'являється синхронно на всіх екранах без окремого RPC.
+    /// </summary>
+    private void SpawnLikeHearts()
+    {
+        if (likeHeartsEffectPrefab == null) return;
+
+        Vector3 pos = heartsSpawnPoint != null
+            ? heartsSpawnPoint.position
+            : transform.position + Vector3.up * 1.5f;
+
+        GameObject fx = Instantiate(likeHeartsEffectPrefab, pos, Quaternion.identity);
+        Destroy(fx, heartsEffectLifetime);
+    }
+
+    /// <summary>
+    /// Викликається з RPC_AddProgress, коли liked == false (рибу зараховано
+    /// як НЕ улюблену). На відміну від лайка, матеріал акули тут НЕ міняється -
+    /// лише спавниться VFX "гнівних рисок". Так само локально на кожному
+    /// клієнті, синхронно, бо сам RPC_AddProgress вже прийшов з RpcTarget.All.
+    /// </summary>
+    private void ShowDislikeEffect()
+    {
+        SpawnDislikeEffect();
+    }
+
+    private void SpawnDislikeEffect()
+    {
+        if (dislikeEffectPrefab == null) return;
+
+        Vector3 pos = heartsSpawnPoint != null
+            ? heartsSpawnPoint.position
+            : transform.position + Vector3.up * 1.5f;
+
+        GameObject fx = Instantiate(dislikeEffectPrefab, pos, Quaternion.identity);
+        Destroy(fx, dislikeEffectLifetime);
     }
 
     void Update()
     {
-        if (isBiting || isEating) return; // під час укусу/поїдання рухом керує окрема корутина
+        // Тільки MasterClient рахує рух і стан укусу. Інші клієнти отримують
+        // готову позицію/поворот з мережі (Photon Transform View) і сюди
+        // взагалі не заходять - інакше кожен порахував би свій власний
+        // patrolAngle і свій власний момент початку укусу.
+        if (!photonView.IsMine) return;
+
+        if (isBiting || isEating) return;
 
         Patrol();
 
-        // Якщо є "запланований" укус і ми щойно досягли (чи проскочили б) потрібного градуса -
-        // зупиняємось рівно на ньому і починаємо укус.
         if (pendingTargetAngle.HasValue && patrolAngle >= pendingTargetAngle.Value)
         {
             patrolAngle = pendingTargetAngle.Value;
@@ -143,10 +306,10 @@ public class SharkController : MonoBehaviour
         }
     }
 
-    // Виконується вже ПІСЛЯ Update() і після того, як Animator (в т.ч. root motion)
-    // застосував свої зміни до transform - тому це остаточне, гарантоване слово.
     void LateUpdate()
     {
+        if (!photonView.IsMine) return;
+
         if (forcedPos.HasValue) transform.position = forcedPos.Value;
         if (forcedRot.HasValue) transform.rotation = forcedRot.Value;
     }
@@ -160,7 +323,6 @@ public class SharkController : MonoBehaviour
         ApplyPatrolTransform(patrolAngle, bob);
     }
 
-    // Виставляє позицію/поворот акули для заданого (необгорнутого) кута патрулювання.
     void ApplyPatrolTransform(float angleDeg, float bob)
     {
         if (orbitCenter == null) return;
@@ -182,80 +344,92 @@ public class SharkController : MonoBehaviour
         }
     }
 
-    // true, якщо акула ФАКТИЧНО зайнята (кусає/їсть острів, чи зараз їсть рибу).
-    // Запланований (ще не розпочатий) укус острова сюди НЕ входить -
-    // його риба має право перебити (див. RequestEatFish).
     public bool IsBusyWithBite => isBiting || isEating;
-
-    // true, якщо акула або вже кусає/їсть, або ЩЕ ТІЛЬКИ пливе до запланованого
-    // укусу острова (pendingTargetAngle). SharkBiteController має чекати саме
-    // на це значення перед наступним запитом на укус - інакше він перезапише
-    // ще не виконаний план новим, і укус так і не відбудеться з анімацією.
     public bool HasPendingOrActiveBite => isBiting || isEating || pendingTargetAngle.HasValue;
 
-    // Викликається ззовні (SharkBiteController). Акула НЕ телепортується і НЕ звертає -
-    // вона просто продовжує звичайне патрулювання, аж доки природним чином не дійде
-    // до desiredAngleDeg на своєму колі, і лише тоді зупиняється й кусає.
+    /// <summary>Викликається лише SharkBiteController, який сам вже гарантує PhotonNetwork.IsMasterClient.</summary>
     public void RequestBite(float desiredAngleDeg, System.Action onBiteImpact, float biteDuration)
     {
+        if (!photonView.IsMine) return; // подвійна підстраховка
         if (IsBusyWithBite) return;
 
-        // Найближчий "наступний" момент проходження цього градуса вперед по ходу руху.
         float delta = Mathf.Repeat(desiredAngleDeg - patrolAngle, 360f);
-        if (delta < 1f) delta += 360f; // щоб завжди проплила хоч трохи, а не кусала миттєво на місці
+        if (delta < 1f) delta += 360f;
 
         pendingTargetAngle = patrolAngle + delta;
         pendingOnImpact = onBiteImpact;
         pendingBiteDuration = biteDuration;
     }
 
-    // Викликається ззовні (WaterFishZone), коли риба впала в море.
-    // Якщо акула вже ФАКТИЧНО кусає/жує острів - ігноруємо (риба почекає наступного разу).
-    // Якщо акула лише ЗАПЛАНУВАЛА укус (ще пливе туди) - скасовуємо план і йдемо їсти рибу.
-    // Акула телепортується до риби, з'їдає її, повертається на те саме місце на колі.
-    public void RequestEatFish(Transform fish, FishProgressBar progressBar)
+    /// <summary>Викликається зовнішнім кодом поїдання риби. Має сенс лише на MasterClient.</summary>
+    public void RequestEatFish(Transform fish)
     {
-        Debug.Log("[EatFish] Викликано. isBiting=" + isBiting + ", isEating=" + isEating + ", pendingTargetAngle=" + pendingTargetAngle);
-
+        if (!photonView.IsMine) return;
         if (isBiting || isEating) return;
         if (fish == null) return;
 
-        // Скасовуємо запланований (ще не розпочатий) укус острова - риба важливіша
         pendingTargetAngle = null;
         pendingOnImpact = null;
 
-        StartCoroutine(EatFishRoutine(fish, progressBar));
+        StartCoroutine(EatFishRoutine(fish));
     }
 
-    private IEnumerator EatFishRoutine(Transform fish, FishProgressBar progressBar)
+    private IEnumerator EatFishRoutine(Transform fish)
     {
-        Debug.Log("EatFishRoutine ЗАПУЩЕНО, риба: " + (fish != null ? fish.name : "null"));
         isEating = true;
 
-        // Запам'ятовуємо позицію на колі, де акула була до телепорту - щоб повернутись сюди ж
+        // Визначаємо вид риби ДО Destroy() нижче, поки об'єкт ще існує.
+        string speciesId = null;
+        if (fish != null)
+        {
+            Pickupable pickupable = fish.GetComponent<Pickupable>();
+            if (pickupable != null)
+                speciesId = pickupable.fishSpeciesId;
+        }
+
+        if (string.IsNullOrEmpty(speciesId))
+            Debug.LogWarning($"[SharkController] У риби '{fish?.name}' не задано fishSpeciesId - вважаю, що акулі вона не смакує.");
+
+        // Захист від гонки: якщо RPC_SetLikedSpecies ще не долетів (наприклад,
+        // риба з'їдена одразу на старті сесії), почекаємо трохи, а не одразу
+        // рахуємо рибу "нелюбою" (-1). Якщо смаки так і не прийшли за
+        // maxPreferencesWaitSeconds - це, найімовірніше, проблема конфігурації
+        // (allFishSpeciesIds/likedSpeciesCount в інспекторі), і краще зарахувати
+        // рибу нейтрально (0), ніж систематично займати прогрес у мінус.
+        bool preferencesTimedOut = false;
+        if (!preferencesReady)
+        {
+            float waited = 0f;
+            while (!preferencesReady && waited < maxPreferencesWaitSeconds)
+            {
+                waited += Time.deltaTime;
+                yield return null;
+            }
+
+            if (!preferencesReady)
+            {
+                preferencesTimedOut = true;
+                Debug.LogError("[SharkController] Смаки акули (likedSpecies) так і не прийшли за " +
+                    maxPreferencesWaitSeconds + " сек. Перевір allFishSpeciesIds/likedSpeciesCount в " +
+                    "інспекторі та значення Pickupable.fishSpeciesId на префабах риби. Ця риба буде " +
+                    "зарахована нейтрально (0), щоб не псувати прогрес.");
+            }
+        }
+
+        bool liked = !preferencesTimedOut && !string.IsNullOrEmpty(speciesId) && likedSpecies.Contains(speciesId);
+
+        Debug.Log($"[SharkController] Риба з'їдена: speciesId='{speciesId}', likedSpecies=[{string.Join(", ", likedSpecies)}], liked={liked}, preferencesTimedOut={preferencesTimedOut}");
+
         Vector3 circleReturnPos = transform.position;
         Quaternion circleReturnRot = transform.rotation;
         float returnAngle = patrolAngle;
 
-        // Телепортуємось прямо до риби
         Vector3 eatPos = transform.position;
         if (fish != null)
         {
             eatPos = fish.position;
-            eatPos.y = patrolHeight; // тримаємось на висоті плавання, а не на висоті самої риби
+            eatPos.y = patrolHeight;
 
-            // Риба могла впасти у воду дуже близько до берега - не даємо акулі
-            // телепортуватись на сушу/мілководдя. Відсуваємо точку поїдання
-            // назовні вздовж лінії "острів -> риба" до мінімально безпечної відстані.
-            //
-            // ВАЖЛИВО: пушимо ТІЛЬКИ якщо напрямок "острів -> риба" визначений
-            // (distFromCenter > 0.01). Якщо риба впала майже точно над orbitCenter
-            // по X/Z, fromCenter близький до нульового вектора і нормалізувати
-            // його не можна - у старій версії тут підставлявся довільний
-            // Vector3.forward, що й розвертало акулу невідомо куди. Тепер у
-            // такому (вкрай рідкісному) випадку просто НЕ відсуваємо позицію -
-            // акула з'їсть рибу там, де вона впала, а faceIslandRot нижче
-            // однаково коректно розверне акулу на orbitCenter.
             if (orbitCenter != null)
             {
                 Vector3 fromCenter = eatPos - orbitCenter.position;
@@ -274,10 +448,6 @@ public class SharkController : MonoBehaviour
             transform.position = eatPos;
         }
 
-        // Рахуємо поворот обличчям до острова ОДИН раз тут (позиція акули й острова
-        // під час поїдання не змінюються). Окрема корекція
-        // visualForwardOffsetYFacingIsland дозволяє підправити кут саме для цього
-        // випадку, не чіпаючи visualForwardOffsetY, який використовується в патрулюванні.
         Quaternion faceIslandRot = transform.rotation;
         if (orbitCenter != null)
         {
@@ -286,36 +456,29 @@ public class SharkController : MonoBehaviour
             if (dirToIsland != Vector3.zero)
                 faceIslandRot = Quaternion.LookRotation(dirToIsland.normalized)
                               * Quaternion.Euler(0f, visualForwardOffsetY + visualForwardOffsetYFacingIsland, 0f);
-
-            Debug.Log($"[EatFish DEBUG] sharkPos={transform.position}, orbitCenter={orbitCenter.position}, " +
-                      $"dirToIsland={dirToIsland}, offsetY={visualForwardOffsetY}, extraOffsetY={visualForwardOffsetYFacingIsland}, " +
-                      $"faceIslandRot.eulerY={faceIslandRot.eulerAngles.y}");
-        }
-        else
-        {
-            Debug.LogWarning("[EatFish DEBUG] orbitCenter == null! Акула НЕ повертається до острова - лишає ту рота" +
-                              "цію, яку мала до цього (з патрулювання).");
         }
         transform.rotation = faceIslandRot;
 
-        // Примусово "замикаємо" позу на весь час поїдання - LateUpdate() буде
-        // виставляти саме ці значення щокадру ПІСЛЯ аніматора, тож навіть root
-        // motion з кліпа "Eat" вже нічого не зіпсує.
         forcedPos = eatPos;
         forcedRot = faceIslandRot;
 
-        // З'їдаємо рибу (окрема анімація від "доїдання" після укусу острова)
         animator.SetTrigger(eatFishTriggerName);
 
         if (fish != null)
             Destroy(fish.gameObject);
 
-        if (progressBar != null)
-            progressBar.AddFish(1);
+        // Пауза перед реакцією - щоб анімація "Eat" встигла зіграти
+        // окремо від наступної "Like"/"Dislike".
+        yield return new WaitForSeconds(reactionDelay);
 
-        yield return new WaitForSeconds(eatHoldDuration);
+        animator.SetTrigger(preferencesTimedOut ? dislikeTriggerName : (liked ? likeTriggerName : dislikeTriggerName));
 
-        // Знімаємо примусову позу і телепортуємось назад на коло, туди, де акула була до цього
+        int delta = preferencesTimedOut ? 0 : (liked ? 1 : -1);
+        photonView.RPC(nameof(RPC_AddProgress), RpcTarget.All, delta, liked);
+
+        float remainingHold = Mathf.Max(0f, eatHoldDuration - reactionDelay);
+        yield return new WaitForSeconds(remainingHold);
+
         forcedPos = null;
         forcedRot = null;
         transform.position = circleReturnPos;
@@ -329,8 +492,6 @@ public class SharkController : MonoBehaviour
     {
         isBiting = true;
 
-        // Замикаємо позу на час укусу теж - щоб root motion з кліпа "Bite"
-        // не зсунув/не повернув акулу невідомо куди.
         Vector3 bitePos = transform.position;
         Quaternion biteRot = transform.rotation;
         forcedPos = bitePos;
@@ -343,7 +504,6 @@ public class SharkController : MonoBehaviour
 
         yield return new WaitForSeconds(biteDuration * (1f - biteImpactFraction));
 
-        // Акула лишається на місці і "доїдає" відкушений шматок.
         animator.SetTrigger(eatTriggerName);
 
         Vector3 latchPos = transform.position;
@@ -367,6 +527,6 @@ public class SharkController : MonoBehaviour
         transform.position = latchPos;
         transform.rotation = latchRot;
 
-        isBiting = false; // з наступного кадру Update() знову звичайне патрулювання від поточного кута
+        isBiting = false;
     }
 }

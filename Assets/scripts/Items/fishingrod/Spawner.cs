@@ -1,3 +1,4 @@
+using Photon.Pun;
 using UnityEngine;
 
 /// <summary>
@@ -5,6 +6,15 @@ using UnityEngine;
 /// одразу після генерації мешу. Використовує ту саму логіку пошуку точки,
 /// що й PalmSpawner (рейкаст зверху вниз, перевірка на висоту/схил/відступ від краю),
 /// і додатково намагається не поставити вудку впритул до пальми.
+///
+/// Спавн відбувається лише на MasterClient через PhotonNetwork.Instantiate,
+/// щоб вудка була однаковою (мережево синхронізованою) у всіх гравців
+/// і мала справжній PhotonView.ViewID (інакше RPC_RequestPickup падає
+/// з "Illegal view ID:0").
+///
+/// ВАЖЛИВО: rodPrefab має лежати у папці "Resources"
+/// (напр. Assets/Resources/Fishingrod.prefab), інакше PhotonNetwork.Instantiate
+/// не знайде його за іменем.
 ///
 /// Повісити на той самий об'єкт, де HeightmapIsland, або окремий порожній GameObject.
 /// </summary>
@@ -18,7 +28,7 @@ public class FishingRodSpawner : MonoBehaviour
     public PalmSpawner palmSpawner;
 
     [Header("Префаб вудки")]
-    [Tooltip("Префаб з компонентом Pickupable (+ Collider, за потреби Rigidbody), напр. equipAnimTrigger = EquipRod")]
+    [Tooltip("Префаб з компонентом Pickupable (+ Collider, за потреби Rigidbody), напр. equipAnimTrigger = EquipRod. МАЄ лежати в папці Resources!")]
     public GameObject rodPrefab;
 
     [Header("Пошук точки")]
@@ -51,6 +61,10 @@ public class FishingRodSpawner : MonoBehaviour
 
     private void SpawnRod()
     {
+        // Спавнити мережевий об'єкт має право лише MasterClient - інакше
+        // кожен клієнт створив би свою окрему, несинхронізовану вудку.
+        if (!PhotonNetwork.IsMasterClient) return;
+
         if (rodPrefab == null)
         {
             Debug.LogWarning("[FishingRodSpawner] Не задано rodPrefab.");
@@ -68,8 +82,11 @@ public class FishingRodSpawner : MonoBehaviour
         }
 
         Quaternion rotation = Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-        spawnedRod = Instantiate(rodPrefab, point, rotation, island.transform);
-        spawnedRod.name = rodPrefab.name; // прибираємо автоматичний суфікс "(Clone)" для чистішої ієрархії
+
+        // PhotonNetwork.Instantiate шукає префаб за іменем у Resources
+        // і сам призначає йому справжній ViewID, синхронізований для всіх.
+        spawnedRod = PhotonNetwork.Instantiate(rodPrefab.name, point, rotation);
+        spawnedRod.transform.SetParent(island.transform, true);
     }
 
     private bool TryFindValidPoint(float usableRadius, out Vector3 point, out Vector3 normal)

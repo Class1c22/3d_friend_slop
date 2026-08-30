@@ -1,13 +1,19 @@
+using Photon.Pun;
 using UnityEngine;
 
-// Періодично ініціює укуси острова. Обирає випадковий градус на колі акули,
-// рахує від нього точку на березі острова і просить акулу зупинитись саме
-// там (SharkController.RequestBite) - акула сама допливе туди своїм звичайним
-// патрулюванням і лише тоді вкусить.
+// ВАЖЛИВО про мультиплеєр: Random.Range тут (кут укусу, радіус) НЕ синхронний
+// між клієнтами - у кожного своя незалежна послідовність випадкових чисел.
+// Якби Update() тут виконувався на КОЖНОМУ клієнті, кожен кусав би острів
+// у своєму власному випадковому місці - острови розійшлися б з першого ж укусу.
+//
+// Рішення: логіка "коли і де кусати" виконується ЛИШЕ на MasterClient.
+// MasterClient один раз рахує Random-параметри і викликає island.BiteAt(...),
+// який сам розсилає вже ГОТОВІ (не випадкові) числа всім через RPC - так усі
+// клієнти деформують меш однаково, хоча RNG виконався лише в одному місці.
 public class SharkBiteController : MonoBehaviour
 {
     public HeightmapIsland island;
-    public SharkController shark; // якщо не задано - укуси відбуваються миттєво, без анімації, у випадковому напрямку
+    public SharkController shark;
 
     [Header("Таймінг")]
     public float totalDurationSeconds = 300f;
@@ -30,13 +36,16 @@ public class SharkBiteController : MonoBehaviour
 
     void Update()
     {
+        // Лише MasterClient вирішує, коли і де відбувається наступний укус.
+        // На інших клієнтах цей скрипт не робить нічого - результат укусу
+        // вони отримають готовим через RPC від HeightmapIsland.
+        if (!PhotonNetwork.IsMasterClient) return;
+
         if (bitesDone >= totalBites) return;
 
         timer += Time.deltaTime;
         if (timer < interval) return;
 
-        // Якщо акула ще "дожовує" попередній укус - чекаємо, поки звільниться,
-        // а не пропускаємо цикл і не накладаємо укуси один на одного.
         if (shark != null && shark.IsBusyWithBite) return;
 
         timer = 0f;
@@ -50,7 +59,6 @@ public class SharkBiteController : MonoBehaviour
         float rad = angleDeg * Mathf.Deg2Rad;
         Vector3 dir = new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad));
 
-        // Радіус кола, з якого кусаємо, поступово зменшується - острів "тане" глибше до центру.
         float progress = (float)bitesDone / totalBites;
         float currentShoreRadius = island.WorldSize / 2f * (1f - progress * 0.5f);
 
@@ -59,8 +67,6 @@ public class SharkBiteController : MonoBehaviour
 
         if (shark != null)
         {
-            // Акула сама допливе до цього градуса на своєму колі, зупиниться,
-            // вкусить (саме тоді провалюється шматок острова), поїсть і попливе далі.
             shark.RequestBite(
                 angleDeg,
                 () => island.BiteAt(bitePos, radius, biteDepthBelowSea, biteDuration),
