@@ -70,6 +70,14 @@ public class SharkController : MonoBehaviourPun
     [Tooltip("Скільки секунд тримати 'улюблений' матеріал, перш ніж повернути стандартний.")]
     public float likeMaterialDuration = 2f;
 
+    [Header("VFX улюбленої риби (сердечка вгору)")]
+    [Tooltip("Префаб Particle System з сердечками. Спавниться ЛОКАЛЬНО на кожному клієнті всередині ShowLikeMaterial(), який вже викликається з RPC_AddProgress(RpcTarget.All) - додаткового RPC не потрібно, ефект і так синхронний для всіх.")]
+    public GameObject likeHeartsEffectPrefab;
+    [Tooltip("Точка спавну сердечок. Якщо не задано - трохи вище акули (transform.position + Vector3.up * 1.5).")]
+    public Transform heartsSpawnPoint;
+    [Tooltip("Через скільки секунд знищити заспавнений об'єкт ефекту (має бути >= тривалості партиклів, щоб не обрізати анімацію).")]
+    public float heartsEffectLifetime = 2.5f;
+
     private Material defaultMaterial;
     private Coroutine likeMaterialRoutine;
 
@@ -195,18 +203,21 @@ public class SharkController : MonoBehaviourPun
 
     /// <summary>
     /// Тимчасово перемикає матеріал акули на likeMaterial, а через
-    /// likeMaterialDuration повертає стандартний. Викликається з
-    /// RPC_AddProgress, тобто виконується ОДНАКОВО на всіх клієнтах.
+    /// likeMaterialDuration повертає стандартний, і спавнить VFX сердечок.
+    /// Викликається з RPC_AddProgress, тобто виконується ОДНАКОВО на всіх
+    /// клієнтах - додаткового RPC для самого ефекту не потрібно.
     /// </summary>
     private void ShowLikeMaterial()
     {
-        if (sharkRenderer == null || likeMaterial == null)
-            return;
+        if (sharkRenderer != null && likeMaterial != null)
+        {
+            if (likeMaterialRoutine != null)
+                StopCoroutine(likeMaterialRoutine);
 
-        if (likeMaterialRoutine != null)
-            StopCoroutine(likeMaterialRoutine);
+            likeMaterialRoutine = StartCoroutine(LikeMaterialRoutine());
+        }
 
-        likeMaterialRoutine = StartCoroutine(LikeMaterialRoutine());
+        SpawnLikeHearts();
     }
 
     private IEnumerator LikeMaterialRoutine()
@@ -219,6 +230,24 @@ public class SharkController : MonoBehaviourPun
             sharkRenderer.material = defaultMaterial;
 
         likeMaterialRoutine = null;
+    }
+
+    /// <summary>
+    /// Спавнить одноразовий партикл-ефект (сердечка) над акулою.
+    /// Викликається локально на кожному клієнті з ShowLikeMaterial(),
+    /// яка сама вже викликана через RPC_AddProgress(RpcTarget.All) -
+    /// тому ефект з'являється синхронно на всіх екранах без окремого RPC.
+    /// </summary>
+    private void SpawnLikeHearts()
+    {
+        if (likeHeartsEffectPrefab == null) return;
+
+        Vector3 pos = heartsSpawnPoint != null
+            ? heartsSpawnPoint.position
+            : transform.position + Vector3.up * 1.5f;
+
+        GameObject fx = Instantiate(likeHeartsEffectPrefab, pos, Quaternion.identity);
+        Destroy(fx, heartsEffectLifetime);
     }
 
     void Update()
