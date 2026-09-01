@@ -53,8 +53,8 @@ Material:
     m_Floats:
     - _QueueControl: 0
     - _QueueOffset: 0
-    - _depth: 2
-    - _depthColorScale: 10
+    - _depth: 1
+    - _depthColorScale: 15
     - _speed: 0.07
     - _voronoiDistoreSpeed: 1.49
     m_Colors:
