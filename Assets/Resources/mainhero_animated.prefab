@@ -2015,6 +2015,7 @@ MonoBehaviour:
   runSpeed: 6
   jumpHeight: 1.5
   gravity: -9.81
+  underwaterGravityMultiplier: 0.3
   animator: {fileID: 3036071077932927395}
   cameraTransform: {fileID: 0}
   handAnimatorController: {fileID: 0}

@@ -13,6 +13,10 @@ public class PlayerController : MonoBehaviourPun
     public float jumpHeight = 1.5f;
     public float gravity = -9.81f;
 
+    [Header("Підводна гравітація")]
+    [Tooltip("Множник до gravity, коли гравець під водою (0.3 = 30% від звичайної)")]
+    public float underwaterGravityMultiplier = 0.3f;
+
     [Header("Посилання")]
     public Animator animator;
     public Transform cameraTransform; // перетягни сюди Main Camera
@@ -24,6 +28,7 @@ public class PlayerController : MonoBehaviourPun
     private Vector3 velocity;
     private bool isGrounded;
     private bool isJumping;
+    private bool isUnderwater;
 
     void Start()
     {
@@ -95,10 +100,20 @@ public class PlayerController : MonoBehaviourPun
             isJumping = true;
         }
 
-        velocity.y += gravity * Time.deltaTime;
+        float currentGravity = isUnderwater ? gravity * underwaterGravityMultiplier : gravity;
+        velocity.y += currentGravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
 
         UpdateAnimator(inputDir.magnitude, isMoving && isRunning, jumpPressed);
+    }
+
+    /// <summary>
+    /// Викликається PlayerBreath при вході/виході з води - вмикає/вимикає
+    /// зменшену гравітацію на час перебування під водою.
+    /// </summary>
+    public void SetUnderwater(bool value)
+    {
+        isUnderwater = value;
     }
 
     void UpdateAnimator(float moveMagnitude, bool isSprinting, bool jumpPressed)
