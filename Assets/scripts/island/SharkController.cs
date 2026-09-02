@@ -347,6 +347,85 @@ public class SharkController : MonoBehaviourPun
     public bool IsBusyWithBite => isBiting || isEating;
     public bool HasPendingOrActiveBite => isBiting || isEating || pendingTargetAngle.HasValue;
 
+    /// <summary>
+    /// Миттєве "поглинання" всього острова (гравець(і) померли) - на відміну
+    /// від RequestBite(), НЕ чекає, поки акула допливе до потрібного кута
+    /// патрулювання: акула одразу розвертається до острова там, де є, і
+    /// грає biteTriggerName -> (через impactDelay) onImpact -> eatTriggerName,
+    /// щоб острів зникав не сам по собі, а виглядав саме як укус/поїдання акулою.
+    /// Викликати має сенс лише MasterClient (SharkBiteController це гарантує).
+    /// </summary>
+    public void RequestDevourWholeIsland(System.Action onImpact, float impactDelay)
+    {
+        if (!photonView.IsMine) return;
+
+        // Це фінальна подія (гравець(і) померли) - вона важливіша за будь-яку
+        // поточну дію акули (звичайний укус за таймером чи поїдання риби).
+        // Раніше, якщо isBiting/isEating вже було true (акула саме кусала чи
+        // їла), цей запит просто мовчки ігнорувався - і острів починав тонути
+        // (через SharkBiteController) БЕЗ жодної анімації укусу, бо onImpact
+        // ніколи не викликався. Тепер натомість примусово перериваємо все, що
+        // акула зараз робить, і одразу починаємо анімацію "з'їдання острова".
+        StopAllCoroutines();
+        isBiting = false;
+        isEating = false;
+        pendingTargetAngle = null;
+        pendingOnImpact = null;
+        forcedPos = null;
+        forcedRot = null;
+
+        StartCoroutine(DevourWholeIslandRoutine(onImpact, impactDelay));
+    }
+
+    private IEnumerator DevourWholeIslandRoutine(System.Action onImpact, float impactDelay)
+    {
+        isBiting = true;
+
+        Quaternion biteRot = transform.rotation;
+        if (orbitCenter != null)
+        {
+            Vector3 dirToIsland = orbitCenter.position - transform.position;
+            dirToIsland.y = 0f;
+            if (dirToIsland != Vector3.zero)
+                biteRot = Quaternion.LookRotation(dirToIsland.normalized) * Quaternion.Euler(0f, visualForwardOffsetY, 0f);
+        }
+
+        Vector3 bitePos = transform.position;
+        forcedPos = bitePos;
+        forcedRot = biteRot;
+        transform.rotation = biteRot;
+
+        animator.SetTrigger(biteTriggerName);
+
+        yield return new WaitForSeconds(impactDelay);
+        onImpact?.Invoke();
+
+        animator.SetTrigger(eatTriggerName);
+
+        Vector3 latchPos = transform.position;
+        Quaternion latchRot = transform.rotation;
+        float eatElapsed = 0f;
+
+        while (eatElapsed < eatHoldDuration)
+        {
+            eatElapsed += Time.deltaTime;
+
+            float shakeX = Mathf.Sin(eatElapsed * eatShakeSpeed) * eatShakeAmplitude;
+            float shakeY = Mathf.Sin(eatElapsed * eatShakeSpeed * 1.7f) * eatShakeAmplitude * 0.5f;
+            forcedPos = latchPos + new Vector3(shakeX, shakeY, 0f);
+            forcedRot = latchRot;
+
+            yield return null;
+        }
+
+        forcedPos = null;
+        forcedRot = null;
+        transform.position = latchPos;
+        transform.rotation = latchRot;
+
+        isBiting = false;
+    }
+
     /// <summary>Викликається лише SharkBiteController, який сам вже гарантує PhotonNetwork.IsMasterClient.</summary>
     public void RequestBite(float desiredAngleDeg, System.Action onBiteImpact, float biteDuration)
     {
