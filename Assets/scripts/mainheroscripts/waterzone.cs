@@ -26,10 +26,13 @@ public class WaterZone : MonoBehaviour
             return;
         }
 
-        var photonView = other.GetComponent<Photon.Pun.PhotonView>();
+        // GetComponentInParent, а не GetComponent - колайдер (CharacterController) висить
+        // на дочірньому об'єкті mainhero_animated, а PhotonView і PlayerBreath - на
+        // корені persona-об'єкта (mainhero). Звичайний GetComponent їх би не знайшов.
+        var photonView = other.GetComponentInParent<Photon.Pun.PhotonView>();
         if (photonView == null)
         {
-            Debug.Log("[WaterZone] Пропущено - немає PhotonView на об'єкті");
+            Debug.Log("[WaterZone] Пропущено - немає PhotonView на об'єкті (і в батьках)");
             return;
         }
 
@@ -39,7 +42,7 @@ public class WaterZone : MonoBehaviour
             return;
         }
 
-        var breath = other.GetComponent<PlayerBreath>();
+        var breath = other.GetComponentInParent<PlayerBreath>();
         if (breath == null)
         {
             Debug.Log("[WaterZone] Пропущено - немає компонента PlayerBreath");
@@ -58,10 +61,10 @@ public class WaterZone : MonoBehaviour
 
         if (!other.CompareTag("Player")) return;
 
-        var photonView = other.GetComponent<Photon.Pun.PhotonView>();
+        var photonView = other.GetComponentInParent<Photon.Pun.PhotonView>();
         if (photonView == null || !photonView.IsMine) return;
 
-        var breath = other.GetComponent<PlayerBreath>();
+        var breath = other.GetComponentInParent<PlayerBreath>();
         if (breath != null)
         {
             Debug.Log($"[WaterZone] {other.name} покинув зону води");
