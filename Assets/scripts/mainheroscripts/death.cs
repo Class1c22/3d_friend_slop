@@ -37,11 +37,11 @@ public class PlayerDeathHandler : MonoBehaviourPun
     public GameObject[] gameplayUI;
 
     [Header("Острів (фінальний ефект)")]
-    [Tooltip("Острів, який треба миттєво поглинути (акула \"з'їдає\" весь острів), коли гравець - або всі гравці - помирають. Якщо не задано - шукається на сцені автоматично через FindObjectOfType.")]
-    public HeightmapIsland islandToDevour;
+    [Tooltip("SharkBiteController зі сцени - через нього гравець(і)-смерть запускає миттєве поглинання острова акулою (з анімацією укусу, а не просто зникнення). Якщо не задано - шукається автоматично через FindObjectOfType.")]
+    public SharkBiteController sharkBiteController;
 
-    [Tooltip("Скільки секунд триває миттєве затоплення всього острова після смерті гравця")]
-    public float islandDevourDuration = 1.2f;
+    [Tooltip("Затримка (сек) після смерті гравця, перш ніж острів почне зникати (акула кусати).")]
+    public float islandDevourStartDelay = 1f;
 
     private bool isDead;
     public bool IsDead => isDead;
@@ -50,8 +50,8 @@ public class PlayerDeathHandler : MonoBehaviourPun
     {
         ResolveCamerasIfMissing();
 
-        if (islandToDevour == null)
-            islandToDevour = FindObjectOfType<HeightmapIsland>();
+        if (sharkBiteController == null)
+            sharkBiteController = FindObjectOfType<SharkBiteController>();
     }
 
     private void ResolveCamerasIfMissing()
@@ -135,14 +135,16 @@ public class PlayerDeathHandler : MonoBehaviourPun
                 if (ui != null) ui.SetActive(false);
         }
 
-        // Коли гравець (або всі гравці) помирає - острів має миттєво зникнути
-        // (акула "з'їдає" все одразу), а не поступово тонути шматками
-        // (SharkBiteController.cs). RPC_Die виконується на КОЖНОМУ клієнті,
-        // тому цю дію ініціює лише MasterClient (island.DevourWholeIsland()
-        // сам ще раз підстраховується перевіркою photonView.IsMine на острові)
-        // - інакше кожен клієнт спробував би розіслати свій власний RPC.
-        if (PhotonNetwork.IsMasterClient && islandToDevour != null)
-            islandToDevour.DevourWholeIsland(islandDevourDuration);
+        // Коли гравець (або всі гравці) помирає - острів має зникнути (акула
+        // його "з'їдає", з анімацією укусу), але не миттєво в той самий кадр,
+        // що й смерть гравця, а з невеликою затримкою (islandDevourStartDelay),
+        // щоб ці дві події не зливались візуально в одну. RPC_Die виконується
+        // на КОЖНОМУ клієнті, тому цю дію ініціює лише MasterClient
+        // (DevourWholeIslandNow() сам ще раз підстраховується перевіркою
+        // PhotonNetwork.IsMasterClient) - інакше кожен клієнт спробував би
+        // розіслати свій власний RPC.
+        if (PhotonNetwork.IsMasterClient && sharkBiteController != null)
+            StartCoroutine(DevourWholeIslandDelayedRoutine());
 
         if (photonView.IsMine)
         {
@@ -191,5 +193,11 @@ public class PlayerDeathHandler : MonoBehaviourPun
     {
         yield return new WaitForSeconds(delay);
         ShowGameOver();
+    }
+
+    private IEnumerator DevourWholeIslandDelayedRoutine()
+    {
+        yield return new WaitForSeconds(islandDevourStartDelay);
+        sharkBiteController.DevourWholeIslandNow();
     }
 }
