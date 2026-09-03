@@ -181,6 +181,12 @@ public class PlayerDeathHandler : MonoBehaviourPun
         if (!photonView.IsMine) return;
         if (gameOverUI != null)
             gameOverUI.SetActive(true);
+
+        // ФІКС: без цього курсор лишається заблокованим і невидимим
+        // (з FirstPersonCamera.Start()), і гравець фізично не може
+        // клікнути по кнопках Game Over UI.
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     public void ShowGameOverDelayed(float delay)
