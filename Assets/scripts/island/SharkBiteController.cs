@@ -25,30 +25,13 @@ public class SharkBiteController : MonoBehaviour
     public float biteDuration = 2.5f;
     public float biteDepthBelowSea = -3f;
 
-    [Header("Миттєве поглинання (коли гравець(і) помирають)")]
-    [Tooltip("Затримка (сек) між тим, як акула почне 'кусати' (biteTriggerName), і моментом, коли острів реально почне тонути - щоб виглядало як укус, а не просто зникнення.")]
-    public float devourImpactDelay = 1f;
-    [Tooltip("За скільки секунд тоне ввесь острів після impact-моменту укусу.")]
-    public float devourSinkDuration = 1.2f;
-
     private float timer;
     private float interval;
     private int bitesDone = 0;
-    private bool devourTriggered = false;
 
     void Start()
     {
         interval = totalDurationSeconds / totalBites;
-
-        // Підстраховка: якщо посилання не призначені в інспекторі, острів все
-        // одно потоне (island.DevourWholeIsland викликається напряму), але БЕЗ
-        // акули не буде анімації укусу - шукаємо обидва компоненти на сцені
-        // самостійно, щоб цього не сталось через звичайну неуважність.
-        if (shark == null)
-            shark = FindObjectOfType<SharkController>();
-
-        if (island == null)
-            island = FindObjectOfType<HeightmapIsland>();
     }
 
     void Update()
@@ -58,31 +41,12 @@ public class SharkBiteController : MonoBehaviour
         // вони отримають готовим через RPC від HeightmapIsland.
         if (!PhotonNetwork.IsMasterClient) return;
 
-        // Острів уже миттєво поглинуто (гравець(і) померли - див.
-        // DevourWholeIslandNow() нижче, викликається з PlayerDeathHandler).
-        // Продовжувати "поступові" укуси нема сенсу - острова вже немає
-        // (або воно ось-ось зникне - devourTriggered виставляється одразу,
-        // ще до того, як island.IsDevoured стане true).
-        if (devourTriggered || (island != null && island.IsDevoured)) return;
-
         if (bitesDone >= totalBites) return;
 
         timer += Time.deltaTime;
         if (timer < interval) return;
 
-        // ФІКС: IsBusyWithBite (isBiting || isEating) стає true лише в момент,
-        // коли акула вже РЕАЛЬНО кусає/їсть - але поки вона тільки ПЛИВЕ до
-        // потрібного кута (RequestBite вже викликано, pendingTargetAngle
-        // виставлено, а isBiting ще false), IsBusyWithBite повертав false.
-        // Через це таймер встигав натикати наступний DoBite() ще до того, як
-        // попередній укус взагалі стався, і RequestBite() просто перезаписував
-        // pendingTargetAngle новим значенням - попередній запит на укус губився
-        // без жодного ефекту. Результат: за totalDurationSeconds встигало
-        // "запуститись" набагато більше за totalBites запитів, а острів
-        // деформувався хаотично й виглядало так, ніби акула з'їдає його миттєво.
-        // HasPendingOrActiveBite враховує ще й pendingTargetAngle.HasValue,
-        // тому новий запит більше не проходить, поки попередній не завершиться.
-        if (shark != null && shark.HasPendingOrActiveBite) return;
+        if (shark != null && shark.IsBusyWithBite) return;
 
         timer = 0f;
         bitesDone++;
@@ -112,37 +76,6 @@ public class SharkBiteController : MonoBehaviour
         else
         {
             island.BiteAt(bitePos, radius, biteDepthBelowSea, biteDuration);
-        }
-    }
-
-    /// <summary>
-    /// Викликається з PlayerDeathHandler, коли гравець (або всі гравці)
-    /// помирають: акула одразу "кусає" (грає анімацію Bite -> Eat), а не
-    /// просто чекає своєї черги за таймером, і острів тоне ВЕСЬ одразу,
-    /// а не шматочками. Захищено від повторного запуску прапорцем
-    /// devourTriggered - смерть кількох гравців поспіль не запустить
-    /// анімацію укусу знову.
-    /// </summary>
-    public void DevourWholeIslandNow()
-    {
-        if (!PhotonNetwork.IsMasterClient) return;
-        if (devourTriggered) return;
-        if (island == null || island.IsDevoured) return;
-
-        devourTriggered = true;
-
-        if (shark != null)
-        {
-            shark.RequestDevourWholeIsland(
-                () => island.DevourWholeIsland(devourSinkDuration),
-                devourImpactDelay
-            );
-        }
-        else
-        {
-            // Без акули в сцені показати укус нічим - лишається просто
-            // одразу потопити острів.
-            island.DevourWholeIsland(devourSinkDuration);
         }
     }
 }

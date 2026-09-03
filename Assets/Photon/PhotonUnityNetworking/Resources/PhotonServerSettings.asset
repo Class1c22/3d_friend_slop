@@ -48,8 +48,6 @@ MonoBehaviour:
   - RPC_RequestPickup
   - RPC_AddProgress
   - RPC_SetLikedSpecies
-  - RPC_Die
-  - RPC_DevourWholeIsland
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

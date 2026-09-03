@@ -35,8 +35,6 @@ public class HeightmapIsland : MonoBehaviourPun
     private Mesh mesh;
     private Vector3[] vertices;
     private int topVertCount;
-    private bool devoured;
-    public bool IsDevoured => devoured;
 
     void Start()
     {
@@ -254,68 +252,4 @@ public class HeightmapIsland : MonoBehaviourPun
     }
 
     public float WorldSize => worldSize;
-
-    /// <summary>
-    /// Миттєве (за duration секунд, а не за десятки хвилин по шматочках) повне
-    /// затоплення ВСЬОГО острова - викликається, коли гравець (або всі гравці)
-    /// помирають, як фінальний драматичний ефект "акула зжерла весь острів".
-    /// На відміну від BiteAt(), НЕ прив'язується до найближчого краю - тоне
-    /// одразу вся верхня сітка вершин острова.
-    /// Викликати має сенс лише той клієнт, для якого photonView.IsMine == true
-    /// (MasterClient) - як і у BiteAt(). Захищено від повторного виклику
-    /// прапорцем devoured, щоб смерть кількох гравців поспіль не запускала
-    /// затоплення ще раз (і не ламала вже "потоплений" мешвершин).
-    /// </summary>
-    public void DevourWholeIsland(float duration = 1.2f)
-    {
-        if (!photonView.IsMine) return;
-        if (devoured) return;
-
-        photonView.RPC(nameof(RPC_DevourWholeIsland), RpcTarget.All, duration);
-    }
-
-    [PunRPC]
-    private void RPC_DevourWholeIsland(float duration)
-    {
-        if (devoured) return;
-        devoured = true;
-
-        StartCoroutine(DevourWholeIslandCoroutine(duration));
-    }
-
-    private IEnumerator DevourWholeIslandCoroutine(float duration)
-    {
-        float[] startHeights = new float[topVertCount];
-        for (int i = 0; i < topVertCount; i++)
-            startHeights[i] = vertices[i].y;
-
-        // ВАЖЛИВО: пальми (та все інше, підписане на OnBite - напр. PalmSpawner)
-        // мають зникнути ОДРАЗУ в момент початку затоплення, а не наприкінці
-        // duration-секундної анімації занурення. Радіус із запасом (worldSize),
-        // щоб прибрало геть усе, що стояло на острові.
-        OnBite?.Invoke(transform.position, worldSize);
-
-        // Достатньо глибоко під водою, щоб острів гарантовано зник з очей
-        // навіть у найвищій своїй точці (peakHeight).
-        float targetY = seaLevel - (peakHeight + 15f);
-
-        float elapsed = 0f;
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = elapsed / duration;
-
-            for (int i = 0; i < topVertCount; i++)
-                vertices[i].y = Mathf.Lerp(startHeights[i], targetY, t);
-
-            mesh.vertices = vertices;
-            mesh.RecalculateNormals();
-
-            MeshCollider col = GetComponent<MeshCollider>();
-            col.sharedMesh = null;
-            col.sharedMesh = mesh;
-
-            yield return null;
-        }
-    }
 }
