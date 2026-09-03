@@ -1,38 +1,54 @@
+using ExitGames.Client.Photon;
 using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Обробляє натискання кнопки "New Game" у Game Over UI: перезавантажує
-/// ВСЮ сцену для ВСІХ гравців через PhotonNetwork.LoadLevel, що автоматично
-/// скидає острів, акулу, риб, укуси - все, без ручного відновлення кожної
-/// окремої системи.
-///
-/// Повісити на порожній GameObject у сцені (напр. "GameManager") ЯК SCENE
-/// OBJECT - PhotonView на ньому має бути звичайним "Scene"-об'єктом (не
-/// спавниться рантайм), тоді ним автоматично володіє поточний MasterClient
-/// (так само, як HeightmapIsland).
-///
-/// У кнопці "new game" (Button -> On Click()) признач цей об'єкт і метод
-/// RestartGame().
+/// Обробляє натискання кнопки "New Game": замість PhotonView.RPC (який
+/// вимагає коректний Scene ViewID і ламається, якщо ID не забекався)
+/// використовує PhotonNetwork.RaiseEvent - подію без прив'язки до
+/// конкретного GameObject/ViewID. Надійніше для об'єктів, які не
+/// гарантовано мають стабільний ViewID.
 /// </summary>
-[RequireComponent(typeof(PhotonView))]
-public class GameRestartManager : MonoBehaviourPun
+public class GameRestartManager : MonoBehaviourPunCallbacks, IOnEventCallback
 {
+    private const byte RestartRequestEventCode = 1;
+
+    private void OnEnable()  => PhotonNetwork.AddCallbackTarget(this);
+    private void OnDisable() => PhotonNetwork.RemoveCallbackTarget(this);
+
     public void RestartGame()
     {
-        // Будь-який гравець (навіть не MasterClient) може натиснути кнопку -
-        // тому запит на рестарт відправляємо через RPC саме MasterClient'у,
-        // а вже він виконує PhotonNetwork.LoadLevel (це можна робити лише
-        // з MasterClient - AutomaticallySyncScene подбає, щоб усі клієнти
-        // перейшли в нову сцену синхронно).
-        photonView.RPC(nameof(RPC_RequestRestart), RpcTarget.MasterClient);
+        Debug.Log($"[GameRestartManager] RestartGame() викликано кнопкою. " +
+                  $"IsConnected={PhotonNetwork.IsConnected}, InRoom={PhotonNetwork.InRoom}, " +
+                  $"IsMasterClient={PhotonNetwork.IsMasterClient}");
+
+        if (!PhotonNetwork.InRoom)
+        {
+            Debug.LogError("[GameRestartManager] Не в кімнаті Photon - подію не буде відправлено!");
+            return;
+        }
+
+        // Надсилаємо подію MasterClient'у (працює навіть якщо натиснув не сам мастер)
+        var options = new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient };
+        var sendOptions = SendOptions.SendReliable;
+
+        PhotonNetwork.RaiseEvent(RestartRequestEventCode, null, options, sendOptions);
+        Debug.Log("[GameRestartManager] Подію RestartRequest відправлено MasterClient'у.");
     }
 
-    [PunRPC]
-    private void RPC_RequestRestart()
+    public void OnEvent(EventData photonEvent)
     {
-        if (!PhotonNetwork.IsMasterClient) return;
+        if (photonEvent.Code != RestartRequestEventCode) return;
+
+        Debug.Log($"[GameRestartManager] Отримано RestartRequest. IsMasterClient={PhotonNetwork.IsMasterClient}");
+
+        if (!PhotonNetwork.IsMasterClient)
+        {
+            Debug.LogWarning("[GameRestartManager] Цей клієнт не MasterClient - ігнорую.");
+            return;
+        }
 
         Debug.Log("[GameRestartManager] Перезавантажую сцену для всіх гравців...");
         PhotonNetwork.LoadLevel(SceneManager.GetActiveScene().buildIndex);
