@@ -1,5 +1,4 @@
 using Photon.Pun;
-using Photon.Voice.Unity;
 using UnityEngine;
 
 // Повісити на КОРІНЬ префабу гравця (mainhero_animated), поруч з PhotonView.
@@ -9,11 +8,6 @@ using UnityEngine;
 // Без цього кожна заспавнена копія (включно з чужими) читає локальний Input
 // цього клієнта - тобто WASD/миша/E керують ВСІМА аватарами в сцені одночасно,
 // а UI кисню показувався б навіть за чужий кисень.
-//
-// ДОДАНО: захист від самопрослуховування голосу (voice self-echo). На СВОЄМУ
-// (IsMine) аватарі примусово вимикаємо Recorder.DebugEchoMode і глушимо будь-який
-// Speaker/AudioSource, які могли б програвати тобі назад твій же мікрофон -
-// незалежно від того, чи забули вимкнути "Debug Echo" вручну в інспекторі.
 [RequireComponent(typeof(PhotonView))]
 public class PlayerRig : MonoBehaviourPun
 {
@@ -27,10 +21,6 @@ public class PlayerRig : MonoBehaviourPun
 
     [Header("UI, який мають бачити тільки ми самі (напр. Canvas інвентаря, бар кисню)")]
     [SerializeField] private GameObject[] localOnlyUI;
-
-    [Header("Голос (захист від самопрослуховування)")]
-    [Tooltip("Recorder цього гравця. Якщо не задано - буде знайдений автоматично через GetComponentInChildren.")]
-    [SerializeField] private Recorder voiceRecorder;
 
     void Awake()
     {
@@ -54,42 +44,5 @@ public class PlayerRig : MonoBehaviourPun
         // Photon Animator View). Але свій локальний Input у ньому теж
         // треба заглушити на чужих копіях - це зроблено всередині самого
         // HandAnimatorController.cs через перевірку photonView.IsMine.
-
-        if (mine)
-            FixSelfVoiceEcho();
-    }
-
-    /// <summary>
-    /// Гарантує, що СВІЙ ЖЕ мікрофон ніколи не програється тобі назад:
-    /// - примусово вимикає Recorder.DebugEchoMode (класична причина
-    ///   "чую сам себе" при тестуванні голосового чату);
-    /// - глушить (mute) будь-який Speaker/AudioSource, знайдений на власному
-    ///   аватарі - Speaker призначений відтворювати голос ІНШИХ гравців,
-    ///   а не свій власний.
-    /// </summary>
-    private void FixSelfVoiceEcho()
-    {
-        if (voiceRecorder == null)
-            voiceRecorder = GetComponentInChildren<Recorder>();
-
-        if (voiceRecorder != null && voiceRecorder.DebugEchoMode)
-        {
-            Debug.LogWarning("[PlayerRig] Recorder.DebugEchoMode був увімкнений на своєму аватарі - вимикаю, щоб не чути власний голос.");
-            voiceRecorder.DebugEchoMode = false;
-        }
-
-        // Speaker на СВОЄМУ ж аватарі (не на чужих!) - зайве джерело self-echo.
-        // Speaker потрібен лише на копіях ІНШИХ гравців, щоб чути ЇХНІЙ голос.
-        Speaker[] speakersOnSelf = GetComponentsInChildren<Speaker>(true);
-        foreach (var speaker in speakersOnSelf)
-        {
-            var src = speaker.GetComponent<AudioSource>();
-            if (src != null)
-            {
-                src.mute = true;
-                src.volume = 0f;
-                Debug.LogWarning($"[PlayerRig] Знайдено Speaker '{speaker.name}' на власному аватарі - заглушено, щоб не чути себе.");
-            }
-        }
     }
 }
