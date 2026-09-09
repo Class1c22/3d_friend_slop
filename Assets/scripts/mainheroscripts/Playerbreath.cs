@@ -60,10 +60,17 @@ public class PlayerBreath : MonoBehaviourPun
     [Tooltip("Камера гравця, за позицією якої визначається занурення. Якщо не задано - береться з playerController.cameraTransform")]
     public Transform cameraTransform;
 
+    [Tooltip("Обробник смерті гравця (той самий, що й для акули). Якщо не задано - береться GetComponent на цьому ж об'єкті.")]
+    public PlayerDeathHandler deathHandler;
+
+    [Tooltip("Затримка (сек) перед показом Game Over після смерті від нестачі кисню - дає час, наприклад, програти анімацію \"захлинання\", якщо вона є")]
+    public float drownGameOverDelay = 1.5f;
+
     private float currentOxygen;
     private bool isUnderwater;      // камера реально нижче поверхні - витрачається кисень, показаний бар
     private bool isInWaterVolume;   // тіло в тригері води (може бути true, коли камера ще над поверхнею)
     private float waterSurfaceY;
+    private bool hasDied;           // щоб Die() не викликався щокадру, поки currentOxygen лишається на нулі
 
     void Start()
     {
@@ -80,6 +87,21 @@ public class PlayerBreath : MonoBehaviourPun
 
         if (cameraTransform == null && playerController != null)
             cameraTransform = playerController.cameraTransform;
+
+        if (deathHandler == null)
+            deathHandler = GetComponent<PlayerDeathHandler>();
+
+        // postProcessVolume не можна задати вручну в префабі (він живе в конкретній
+        // сцені, а префаб - спільний асет), тому шукаємо його в рантаймі за тегом.
+        // Постав на об'єкт "Box Volume" у сцені тег "BreathVignette" (Tag -> Add Tag...).
+        if (postProcessVolume == null)
+        {
+            GameObject volumeGO = GameObject.FindWithTag("BreathVignette");
+            if (volumeGO != null)
+                postProcessVolume = volumeGO.GetComponent<Volume>();
+            else
+                Debug.LogWarning("[PlayerBreath] Не знайдено об'єкт з тегом 'BreathVignette' - вінєтка/зерно не працюватимуть.");
+        }
 
         if (postProcessVolume != null && postProcessVolume.profile != null)
         {
@@ -108,8 +130,11 @@ public class PlayerBreath : MonoBehaviourPun
             UpdateBarVisual();
             UpdateOxygenEffects();
 
-            if (currentOxygen <= 0f)
+            if (currentOxygen <= 0f && !hasDied)
+            {
+                hasDied = true;
                 Die();
+            }
         }
         else if (currentOxygen < maxOxygen)
         {
@@ -216,10 +241,16 @@ public class PlayerBreath : MonoBehaviourPun
     {
         Debug.Log("[PlayerBreath] Гравець задихнувся під водою.");
 
-        // TODO: під'єднати до вашої системи смерті/респавну.
-        // Якщо смерть має бути видима іншим гравцям (наприклад анімація),
-        // її варто розсилати через RPC так само, як HeightmapIsland розсилає
-        // укуси - тобто photonView.RPC(nameof(RPC_Die), RpcTarget.All);
-        // Заглушку лишаю тут, бо у вас поки немає окремого PlayerHealth.
+        if (deathHandler == null)
+        {
+            Debug.LogWarning("[PlayerBreath] Не задано PlayerDeathHandler - смерть від нестачі кисню не оброблена.");
+            return;
+        }
+
+        // PlayerDeathHandler.Die() сам розсилає RPC_Die всім клієнтам (ховає модель,
+        // вимикає керування, перемикає камеру на deathCamera) - так само, як при
+        // атаці акули. Різниця лише у джерелі виклику.
+        deathHandler.Die();
+        deathHandler.ShowGameOverDelayed(drownGameOverDelay);
     }
 }

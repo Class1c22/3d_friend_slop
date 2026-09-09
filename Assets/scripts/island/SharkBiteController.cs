@@ -78,4 +78,38 @@ public class SharkBiteController : MonoBehaviour
             island.BiteAt(bitePos, radius, biteDepthBelowSea, biteDuration);
         }
     }
+
+    /// <summary>
+    /// Миттєво "з'їдає" острів одним великим укусом (замість поступових укусів
+    /// у DoBite). Викликається при смерті гравця (з PlayerDeathHandler). Зупиняє
+    /// подальші заплановані укуси та виконує один фінальний BiteAt з радіусом,
+    /// що покриває весь острів.
+    /// </summary>
+    public void DevourWholeIslandNow()
+    {
+        // Підстраховка: навіть якщо метод помилково викличуть не на MasterClient,
+        // сам укус (island.BiteAt) не піде далі - логіка керується лише MasterClient.
+        if (!PhotonNetwork.IsMasterClient) return;
+
+        // Зупиняємо подальші заплановані укуси в Update().
+        bitesDone = totalBites;
+
+        if (island == null) return;
+
+        Vector3 center = island.transform.position;
+        float radius = island.WorldSize; // з запасом, щоб гарантовано покрити весь острів
+
+        if (shark != null)
+        {
+            shark.RequestBite(
+                0f,
+                () => island.BiteAt(center, radius, biteDepthBelowSea, biteDuration),
+                biteDuration
+            );
+        }
+        else
+        {
+            island.BiteAt(center, radius, biteDepthBelowSea, biteDuration);
+        }
+    }
 }

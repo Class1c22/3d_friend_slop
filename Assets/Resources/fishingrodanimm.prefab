@@ -404,6 +404,7 @@ MonoBehaviour:
   attachPositionOffset: {x: 0, y: 0, z: 0}
   attachRotationOffset: {x: 0, y: 0, z: 0}
   equipAnimTrigger: IsFishingEquipped
+  fishSpeciesId: 
 --- !u!95 &2735389934868262377
 Animator:
   serializedVersion: 7
