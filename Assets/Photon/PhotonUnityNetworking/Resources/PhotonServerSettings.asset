@@ -50,6 +50,7 @@ MonoBehaviour:
   - RPC_SetLikedSpecies
   - RPC_Die
   - RPC_DevourWholeIsland
+  - RPC_RequestRestart
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

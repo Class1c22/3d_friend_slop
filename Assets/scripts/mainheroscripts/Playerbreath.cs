@@ -91,6 +91,18 @@ public class PlayerBreath : MonoBehaviourPun
         if (deathHandler == null)
             deathHandler = GetComponent<PlayerDeathHandler>();
 
+        // postProcessVolume не можна задати вручну в префабі (він живе в конкретній
+        // сцені, а префаб - спільний асет), тому шукаємо його в рантаймі за тегом.
+        // Постав на об'єкт "Box Volume" у сцені тег "BreathVignette" (Tag -> Add Tag...).
+        if (postProcessVolume == null)
+        {
+            GameObject volumeGO = GameObject.FindWithTag("BreathVignette");
+            if (volumeGO != null)
+                postProcessVolume = volumeGO.GetComponent<Volume>();
+            else
+                Debug.LogWarning("[PlayerBreath] Не знайдено об'єкт з тегом 'BreathVignette' - вінєтка/зерно не працюватимуть.");
+        }
+
         if (postProcessVolume != null && postProcessVolume.profile != null)
         {
             hasVignette = postProcessVolume.profile.TryGet(out vignette);
