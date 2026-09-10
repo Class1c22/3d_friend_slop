@@ -1430,7 +1430,7 @@ Canvas:
   m_Enabled: 1
   serializedVersion: 3
   m_RenderMode: 2
-  m_Camera: {fileID: 5375183756959390610}
+  m_Camera: {fileID: 0}
   m_PlaneDistance: 100
   m_PixelPerfect: 0
   m_ReceivesEvents: 1
@@ -1642,7 +1642,7 @@ PrefabInstance:
     - target: {fileID: 719219789848578017, guid: 3dbb437450e2593419e2f3f92d73ab2e, type: 3}
       propertyPath: customAttachPoint
       value: 
-      objectReference: {fileID: 5927064676087336634}
+      objectReference: {fileID: 0}
     - target: {fileID: 5774580978547035940, guid: 3dbb437450e2593419e2f3f92d73ab2e, type: 3}
       propertyPath: sceneViewId
       value: 5
@@ -1766,7 +1766,7 @@ PrefabInstance:
     - target: {fileID: 5901254386413881390, guid: 13a888d881472ba4da1e608a378f7cae, type: 3}
       propertyPath: customAttachPoint
       value: 
-      objectReference: {fileID: 5927064676087336634}
+      objectReference: {fileID: 0}
     - target: {fileID: 6630476379460351925, guid: 13a888d881472ba4da1e608a378f7cae, type: 3}
       propertyPath: sceneViewId
       value: 8
@@ -1787,10 +1787,6 @@ PrefabInstance:
     - target: {fileID: 604894379802104021, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
       propertyPath: m_Name
       value: mainhero
-      objectReference: {fileID: 0}
-    - target: {fileID: 604894379802104021, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
-      propertyPath: m_IsActive
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2194608853561337461, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
       propertyPath: sceneViewId
@@ -1944,7 +1940,7 @@ PrefabInstance:
     - target: {fileID: 8506173577848970387, guid: 82f1ddff62e5b064487827b318fe5082, type: 3}
       propertyPath: customAttachPoint
       value: 
-      objectReference: {fileID: 5927064676087336634}
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -2013,7 +2009,7 @@ PrefabInstance:
     - target: {fileID: 8199468062402648068, guid: 58f1048973b976744852f2ed5584c1af, type: 3}
       propertyPath: customAttachPoint
       value: 
-      objectReference: {fileID: 5927064676087336634}
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -2081,16 +2077,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: bfc9669669794104188a3fcd9f97449e, type: 3}
---- !u!20 &5375183756959390610 stripped
-Camera:
-  m_CorrespondingSourceObject: {fileID: 3568251337994696585, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
-  m_PrefabInstance: {fileID: 1879628617843491791}
-  m_PrefabAsset: {fileID: 0}
---- !u!4 &5927064676087336634 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 7969847797558008110, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
-  m_PrefabInstance: {fileID: 1879628617843491791}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &5995442499089757000
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2226,7 +2212,7 @@ PrefabInstance:
     - target: {fileID: 3532924454517155150, guid: ab0ae89565904df4fa9a5cf4f3eb5b6f, type: 3}
       propertyPath: customAttachPoint
       value: 
-      objectReference: {fileID: 5927064676087336634}
+      objectReference: {fileID: 0}
     - target: {fileID: 7554003931765312908, guid: ab0ae89565904df4fa9a5cf4f3eb5b6f, type: 3}
       propertyPath: sceneViewId
       value: 6
@@ -2298,7 +2284,7 @@ PrefabInstance:
       objectReference: {fileID: 195999932}
     - target: {fileID: 5739102772988243692, guid: e882fd0f92e91e24ea818e47f2785e5d, type: 3}
       propertyPath: totalBites
-      value: 25
+      value: 5
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
