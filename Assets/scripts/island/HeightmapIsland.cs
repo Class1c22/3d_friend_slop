@@ -32,6 +32,23 @@ public class HeightmapIsland : MonoBehaviourPun
     public float EffectiveRadius => islandRadius > 0f ? islandRadius : worldSize / 2f;
     public event System.Action<Vector3, float> OnBite;
 
+    /// <summary>
+    /// Спрацьовує РІВНО ОДИН РАЗ - коли приходить "фінальний" укус з радіусом,
+    /// що покриває весь острів (worldSize). Такий радіус ставить і останній
+    /// (totalBites-й) звичайний укус SharkBiteController.DoBite(), і форсований
+    /// SharkBiteController.DevourWholeIslandNow() (викликається при смерті
+    /// гравця) - тобто подія коректно ловить ОБИДВА сценарії "острів зник"
+    /// однією умовою, без потреби HeightmapIsland щось знати про SharkBiteController.
+    ///
+    /// ВАЖЛИВО: спрацьовує локально на КОЖНОМУ клієнті однаково, бо викликається
+    /// з RPC_BiteAt, який сам прийшов через RpcTarget.All - тобто підписники
+    /// (напр. PlayerDeathHandler кожного гравця) реагують синхронно без
+    /// додаткових RPC. Параметр - тривалість занурення мешу (щоб можна було
+    /// показати Game Over саме після завершення візуального ефекту, а не раніше).
+    /// </summary>
+    public event System.Action<float> OnIslandDevoured;
+    private bool devouredNotified = false;
+
     private Mesh mesh;
     private Vector3[] vertices;
     private int topVertCount;
@@ -162,18 +179,6 @@ public class HeightmapIsland : MonoBehaviourPun
         OnIslandGenerated?.Invoke();
     }
 
-    // ВИПРАВЛЕНО: раніше ця функція проєктувала точку на найближчу сторону
-    // КВАДРАТНОЇ межі worldSize (Mathf.Min по 4 стінках), хоча сам острів -
-    // КРУГЛИЙ (форма рахується через dist/radius у GenerateMesh, див. вище).
-    // Через це "берег" для укусів не збігався зі справжнім контуром острова,
-    // і SharkBiteController не міг коректно порахувати, скільки радіусу
-    // острова лишилось - 25 укусів ніколи не з'їдали острів повністю.
-    //
-    // Тепер точка просто проєктується РАДІАЛЬНО (по напрямку від центру)
-    // на коло EffectiveRadius - тобто на справжній берег острова. Завдяки
-    // цьому SharkBiteController.DoBite() може передавати сюди БУДЬ-ЯКИЙ
-    // напрямок (навіть просто одиничний вектор dir), а фактична точка укусу
-    // завжди коректно ляже на берег.
     private Vector3 GetNearestEdgePointLocal(Vector3 localPos)
     {
         float radius = islandRadius > 0f ? islandRadius : worldSize / 2f;
@@ -181,7 +186,7 @@ public class HeightmapIsland : MonoBehaviourPun
         float pz = localPos.z;
 
         Vector2 dir = new Vector2(px, pz);
-        if (dir.sqrMagnitude < 0.0001f) dir = Vector2.right; // точка точно в центрі - беремо напрям за замовчуванням
+        if (dir.sqrMagnitude < 0.0001f) dir = Vector2.right;
         dir.Normalize();
 
         return new Vector3(dir.x * radius, 0f, dir.y * radius);
@@ -191,8 +196,6 @@ public class HeightmapIsland : MonoBehaviourPun
     /// Точка входу для SharkBiteController. НЕ виконує деформацію напряму -
     /// лише розсилає точні параметри укусу всім клієнтам через RPC, щоб
     /// у всіх меш провалився в ОДНАКОВОМУ місці з ОДНАКОВИМ радіусом.
-    /// Викликати має сенс лише той клієнт, для якого photonView.IsMine == true
-    /// (тобто MasterClient) - SharkBiteController це вже гарантує.
     /// </summary>
     public void BiteAt(Vector3 worldBitePos, float radius, float targetDepthBelowSea, float duration)
     {
@@ -207,6 +210,15 @@ public class HeightmapIsland : MonoBehaviourPun
         Vector3 worldEdgePos = transform.TransformPoint(edgeLocalPos);
 
         OnBite?.Invoke(worldEdgePos, radius);
+
+        // Радіус "фінального" укусу завжди рівно island.WorldSize (див.
+        // SharkBiteController.DoBite/DevourWholeIslandNow) - за цим і
+        // впізнаємо, що це той самий укус, який доїдає ВЕСЬ острів.
+        if (!devouredNotified && radius >= worldSize - 0.01f)
+        {
+            devouredNotified = true;
+            OnIslandDevoured?.Invoke(duration);
+        }
 
         StartCoroutine(BiteCoroutine(worldEdgePos, radius, targetDepthBelowSea, duration));
     }

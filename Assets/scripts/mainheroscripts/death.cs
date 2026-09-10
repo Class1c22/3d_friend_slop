@@ -9,7 +9,10 @@ using UnityEngine.UI;
 /// - вимикає скрипти керування;
 /// - перемикає камеру гравця на окрему "камеру смерті";
 /// - за командою показує Game Over UI;
-/// - прив'язує кнопку рестарту до GameRestartManager зі сцени.
+/// - прив'язує кнопку рестарту до GameRestartManager зі сцени;
+/// - показує Game Over, коли острів ПОВНІСТЮ з'їдений акулою (незалежно
+///   від того, що саме стало причиною - природний останній укус чи
+///   форсоване поїдання після смерті гравця).
 ///
 /// Повісити на persona-об'єкт з PhotonView (у твоїй сцені - на "mainhero").
 /// </summary>
@@ -47,6 +50,9 @@ public class PlayerDeathHandler : MonoBehaviourPun
     [Tooltip("SharkBiteController зі сцени. Якщо не задано - шукається автоматично через FindObjectOfType.")]
     public SharkBiteController sharkBiteController;
 
+    [Tooltip("HeightmapIsland зі сцени. Якщо не задано - шукається автоматично через FindObjectOfType. Потрібен, щоб підписатись на подію 'острів повністю з'їдений' і показати Game Over.")]
+    public HeightmapIsland island;
+
     [Tooltip("Затримка (сек) після смерті гравця, перш ніж острів почне зникати.")]
     public float islandDevourStartDelay = 1f;
 
@@ -61,7 +67,39 @@ public class PlayerDeathHandler : MonoBehaviourPun
         if (sharkBiteController == null)
             sharkBiteController = FindObjectOfType<SharkBiteController>();
 
+        if (island == null)
+            island = FindObjectOfType<HeightmapIsland>();
+
+        // Підписуємось на "острів повністю з'їдений" незалежно від причини:
+        // спрацює і від природного останнього укусу SharkBiteController
+        // (гравець ще живий, острова більше немає - все одно Game Over),
+        // і від DevourWholeIslandNow() після Die() (тоді Die() всередині
+        // обробника просто зробить нічого через isDead-гвард, а ShowGameOver
+        // покаже екран, якщо його ще не показали).
+        if (island != null)
+            island.OnIslandDevoured += HandleIslandDevoured;
+
         BindRestartButton();
+    }
+
+    void OnDestroy()
+    {
+        if (island != null)
+            island.OnIslandDevoured -= HandleIslandDevoured;
+    }
+
+    /// <summary>
+    /// Викликається локально на КОЖНОМУ клієнті одразу, як тільки прийшов
+    /// RPC фінального укусу (острів повністю зник). Death/UI логіка тут
+    /// стосується лише ВЛАСНОГО гравця (перевірка photonView.IsMine
+    /// відбувається всередині Die() і ShowGameOverDelayed()).
+    /// </summary>
+    private void HandleIslandDevoured(float sinkDuration)
+    {
+        if (!photonView.IsMine) return;
+
+        Die();
+        ShowGameOverDelayed(sinkDuration);
     }
 
     private void ResolveCamerasIfMissing()

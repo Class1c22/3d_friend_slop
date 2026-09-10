@@ -330,6 +330,7 @@ MonoBehaviour:
   - {fileID: 2623548255038123243}
   restartButton: {fileID: 7985504901560152219}
   sharkBiteController: {fileID: 5435368561005552017, guid: 1d8a3faea73039a4cb96fcd696a306b0, type: 3}
+  island: {fileID: 0}
   islandDevourStartDelay: 1
 --- !u!114 &6753443474739655597
 MonoBehaviour:
