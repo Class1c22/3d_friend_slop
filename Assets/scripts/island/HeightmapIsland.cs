@@ -162,29 +162,29 @@ public class HeightmapIsland : MonoBehaviourPun
         OnIslandGenerated?.Invoke();
     }
 
+    // ВИПРАВЛЕНО: раніше ця функція проєктувала точку на найближчу сторону
+    // КВАДРАТНОЇ межі worldSize (Mathf.Min по 4 стінках), хоча сам острів -
+    // КРУГЛИЙ (форма рахується через dist/radius у GenerateMesh, див. вище).
+    // Через це "берег" для укусів не збігався зі справжнім контуром острова,
+    // і SharkBiteController не міг коректно порахувати, скільки радіусу
+    // острова лишилось - 25 укусів ніколи не з'їдали острів повністю.
+    //
+    // Тепер точка просто проєктується РАДІАЛЬНО (по напрямку від центру)
+    // на коло EffectiveRadius - тобто на справжній берег острова. Завдяки
+    // цьому SharkBiteController.DoBite() може передавати сюди БУДЬ-ЯКИЙ
+    // напрямок (навіть просто одиничний вектор dir), а фактична точка укусу
+    // завжди коректно ляже на берег.
     private Vector3 GetNearestEdgePointLocal(Vector3 localPos)
     {
-        float half = worldSize / 2f;
+        float radius = islandRadius > 0f ? islandRadius : worldSize / 2f;
         float px = localPos.x;
         float pz = localPos.z;
 
-        bool insideBox = px > -half && px < half && pz > -half && pz < half;
+        Vector2 dir = new Vector2(px, pz);
+        if (dir.sqrMagnitude < 0.0001f) dir = Vector2.right; // точка точно в центрі - беремо напрям за замовчуванням
+        dir.Normalize();
 
-        if (!insideBox)
-        {
-            return new Vector3(Mathf.Clamp(px, -half, half), 0f, Mathf.Clamp(pz, -half, half));
-        }
-
-        float distRight = half - px;
-        float distLeft = px + half;
-        float distTop = half - pz;
-        float distBottom = pz + half;
-        float minDist = Mathf.Min(Mathf.Min(distRight, distLeft), Mathf.Min(distTop, distBottom));
-
-        if (minDist == distRight) return new Vector3(half, 0f, pz);
-        if (minDist == distLeft) return new Vector3(-half, 0f, pz);
-        if (minDist == distTop) return new Vector3(px, 0f, half);
-        return new Vector3(px, 0f, -half);
+        return new Vector3(dir.x * radius, 0f, dir.y * radius);
     }
 
     /// <summary>
