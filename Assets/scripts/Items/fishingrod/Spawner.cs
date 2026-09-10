@@ -47,6 +47,9 @@ public class FishingRodSpawner : MonoBehaviour
         if (island == null)
             island = GetComponent<HeightmapIsland>();
 
+        if (palmSpawner == null)
+            palmSpawner = FindObjectOfType<PalmSpawner>();
+
         if (island != null)
             island.OnIslandGenerated += SpawnRod;
         else

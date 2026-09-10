@@ -52,5 +52,3 @@ MonoBehaviour:
   biteRadiusMax: 19
   biteDuration: 1
   biteDepthBelowSea: -3
-  devourImpactDelay: 1
-  devourSinkDuration: 1.2

@@ -38,7 +38,7 @@ public class PlayerBreath : MonoBehaviourPun
     public float refillRate = 25f;    // одиниць/сек на поверхні
 
     [Header("Vignette (ефект нестачі кисню)")]
-    [Tooltip("Global Volume зі сцени, у профілі якого є override Vignette і Film Grain")]
+    [Tooltip("Global Volume зі сцени, у профілі якого є override Vignette і Film Grain. МОЖНА ЛИШИТИ ПОРОЖНІМ - буде знайдено автоматично на старті через FindObjectOfType, бо Global Volume - об'єкт СЦЕНИ і посилання на нього неможливо надійно зберегти на префабі гравця (mainhero спавниться через PhotonNetwork.Instantiate з Resources).")]
     public Volume postProcessVolume;
     [Tooltip("Intensity віньєтки, коли кисню повно")]
     public float vignetteMinIntensity = 0.2f;
@@ -91,22 +91,21 @@ public class PlayerBreath : MonoBehaviourPun
         if (deathHandler == null)
             deathHandler = GetComponent<PlayerDeathHandler>();
 
-        // postProcessVolume не можна задати вручну в префабі (він живе в конкретній
-        // сцені, а префаб - спільний асет), тому шукаємо його в рантаймі за тегом.
-        // Постав на об'єкт "Box Volume" у сцені тег "BreathVignette" (Tag -> Add Tag...).
+        // Global Volume - об'єкт СЦЕНИ, а не дитина префабу mainhero, тому
+        // Inspector-посилання на нього завжди обнулиться після
+        // PhotonNetwork.Instantiate. Шукаємо його прямо в ієрархії сцени -
+        // так само, як SharkBiteController шукає акулу/острів.
         if (postProcessVolume == null)
-        {
-            GameObject volumeGO = GameObject.FindWithTag("BreathVignette");
-            if (volumeGO != null)
-                postProcessVolume = volumeGO.GetComponent<Volume>();
-            else
-                Debug.LogWarning("[PlayerBreath] Не знайдено об'єкт з тегом 'BreathVignette' - вінєтка/зерно не працюватимуть.");
-        }
+            postProcessVolume = FindGlobalVolumeInScene();
 
         if (postProcessVolume != null && postProcessVolume.profile != null)
         {
             hasVignette = postProcessVolume.profile.TryGet(out vignette);
             hasFilmGrain = postProcessVolume.profile.TryGet(out filmGrain);
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerBreath] Не знайдено Global Volume на сцені - ефекти нестачі кисню (Vignette/Film Grain) не працюватимуть.");
         }
 
         currentOxygen = maxOxygen;
@@ -116,6 +115,21 @@ public class PlayerBreath : MonoBehaviourPun
 
         if (oxygenBarRoot != null)
             oxygenBarRoot.SetActive(false);
+    }
+
+    /// <summary>
+    /// Шукає Global Volume прямо в сцені. Спочатку - той, де isGlobal == true
+    /// (типовий кейс: один загальний Volume на всю сцену); якщо такого немає -
+    /// бере перший-ліпший Volume зі сцени.
+    /// </summary>
+    private Volume FindGlobalVolumeInScene()
+    {
+        Volume[] allVolumes = FindObjectsOfType<Volume>(true);
+
+        foreach (var v in allVolumes)
+            if (v.isGlobal) return v;
+
+        return allVolumes.Length > 0 ? allVolumes[0] : null;
     }
 
     void Update()
@@ -144,18 +158,11 @@ public class PlayerBreath : MonoBehaviourPun
             UpdateBarVisual();
             UpdateOxygenEffects();
 
-            // Бар ховаємо саме тут, а не лише в ExitWater(): якщо гравець
-            // вийшов з води з неповним киснем, момент досягнення максимуму
-            // настане пізніше, під час одного з наступних кадрів Update().
             if (currentOxygen >= maxOxygen && oxygenBarRoot != null)
                 oxygenBarRoot.SetActive(false);
         }
     }
 
-    /// <summary>
-    /// Звіряє позицію камери з висотою поверхні води і викликає
-    /// EnterWater()/ExitWater() рівно в момент перетину поверхні.
-    /// </summary>
     private void UpdateSubmergedState()
     {
         bool shouldBeUnderwater = isInWaterVolume
@@ -179,14 +186,9 @@ public class PlayerBreath : MonoBehaviourPun
             oxygenImageRight.fillAmount = fill;
     }
 
-    /// <summary>
-    /// Чим менше кисню - тим сильніше візуальні ефекти на Volume:
-    /// Vignette Intensity і Film Grain Intensity ростуть від min до max.
-    /// При повному кисні = min, при нулі = max.
-    /// </summary>
     private void UpdateOxygenEffects()
     {
-        float ratio = currentOxygen / maxOxygen; // 1 = повний кисень, 0 = задихається
+        float ratio = currentOxygen / maxOxygen;
 
         if (hasVignette && vignette != null)
         {
@@ -201,19 +203,11 @@ public class PlayerBreath : MonoBehaviourPun
         }
     }
 
-    /// <summary>
-    /// Викликається WaterZone при вході/виході тіла гравця з об'єму води.
-    /// Це ще НЕ означає занурення камери - лише те, що гравець у зоні,
-    /// де потенційно можливе занурення. surfaceY має сенс лише коли
-    /// inVolume = true.
-    /// </summary>
     public void SetInWaterVolume(bool inVolume, float surfaceY)
     {
         isInWaterVolume = inVolume;
         waterSurfaceY = surfaceY;
 
-        // Якщо тіло вийшло із зони води - камера точно не під водою,
-        // одразу форсуємо вихід, не чекаючи наступного Update.
         if (!inVolume && isUnderwater)
             ExitWater();
     }
@@ -247,9 +241,6 @@ public class PlayerBreath : MonoBehaviourPun
             return;
         }
 
-        // PlayerDeathHandler.Die() сам розсилає RPC_Die всім клієнтам (ховає модель,
-        // вимикає керування, перемикає камеру на deathCamera) - так само, як при
-        // атаці акули. Різниця лише у джерелі виклику.
         deathHandler.Die();
         deathHandler.ShowGameOverDelayed(drownGameOverDelay);
     }

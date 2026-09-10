@@ -1,13 +1,15 @@
 using System.Collections;
 using Photon.Pun;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// Обробляє "смерть" гравця (напр. акула з'їла) БЕЗ переходу в іншу сцену:
 /// - ховає візуальну модель гравця;
 /// - вимикає скрипти керування;
 /// - перемикає камеру гравця на окрему "камеру смерті";
-/// - за командою показує Game Over UI.
+/// - за командою показує Game Over UI;
+/// - прив'язує кнопку рестарту до GameRestartManager зі сцени.
 ///
 /// Повісити на persona-об'єкт з PhotonView (у твоїй сцені - на "mainhero").
 /// </summary>
@@ -31,16 +33,21 @@ public class PlayerDeathHandler : MonoBehaviourPun
     [SerializeField] private string deathCameraObjectName = "deathcamera";
 
     [Header("UI")]
+    [Tooltip("Якщо не задано - шукається автоматично серед дочірніх об'єктів mainhero за назвою, що містить \"gameover\".")]
     public GameObject gameOverUI;
 
-    [Tooltip("Ігровий HUD, який треба сховати одночасно зі смертю (напр. oxygenBarRoot з PlayerBreath, інвентар тощо). Без цього UI лишається на екрані навіть коли керування вже вимкнено і показана камера смерті.")]
+    [Tooltip("Ігровий HUD, який треба сховати одночасно зі смертю (напр. oxygenBarRoot з PlayerBreath, інвентар тощо).")]
     public GameObject[] gameplayUI;
 
+    [Header("Кнопка перезапуску")]
+    [Tooltip("Кнопка \"New Game\" усередині gameOverUI. Клік прив'язується В КОДІ до GameRestartManager, знайденого на сцені - бо GameRestartManager є ОБ'ЄКТОМ СЦЕНИ, і Inspector-посилання на нього на префабі гравця завжди обнулиться після PhotonNetwork.Instantiate.")]
+    public Button restartButton;
+
     [Header("Острів (фінальний ефект)")]
-    [Tooltip("SharkBiteController зі сцени - через нього гравець(і)-смерть запускає миттєве поглинання острова акулою (з анімацією укусу, а не просто зникнення). Якщо не задано - шукається автоматично через FindObjectOfType.")]
+    [Tooltip("SharkBiteController зі сцени. Якщо не задано - шукається автоматично через FindObjectOfType.")]
     public SharkBiteController sharkBiteController;
 
-    [Tooltip("Затримка (сек) після смерті гравця, перш ніж острів почне зникати (акула кусати).")]
+    [Tooltip("Затримка (сек) після смерті гравця, перш ніж острів почне зникати.")]
     public float islandDevourStartDelay = 1f;
 
     private bool isDead;
@@ -49,9 +56,12 @@ public class PlayerDeathHandler : MonoBehaviourPun
     void Awake()
     {
         ResolveCamerasIfMissing();
+        ResolveGameOverUIIfMissing();
 
         if (sharkBiteController == null)
             sharkBiteController = FindObjectOfType<SharkBiteController>();
+
+        BindRestartButton();
     }
 
     private void ResolveCamerasIfMissing()
@@ -76,15 +86,55 @@ public class PlayerDeathHandler : MonoBehaviourPun
             Debug.LogError($"[PlayerDeathHandler] Не знайдено deathCamera (шукав об'єкт \"{deathCameraObjectName}\") і поле в інспекторі порожнє!");
     }
 
+    /// <summary>
+    /// Якщо gameOverUI не призначено вручну - шукає серед ДОЧІРНІХ об'єктів
+    /// mainhero (вони гарантовано на місці, бо це той самий префаб) той,
+    /// чия назва містить "gameover" (без урахування регістру).
+    /// </summary>
+    private void ResolveGameOverUIIfMissing()
+    {
+        if (gameOverUI != null) return;
+
+        foreach (Transform t in GetComponentsInChildren<Transform>(true))
+        {
+            if (t.gameObject == gameObject) continue;
+
+            if (t.name.ToLower().Contains("gameover"))
+            {
+                gameOverUI = t.gameObject;
+                Debug.Log($"[PlayerDeathHandler] gameOverUI автоматично знайдено: {t.name}");
+                break;
+            }
+        }
+
+        if (gameOverUI == null)
+            Debug.LogWarning("[PlayerDeathHandler] gameOverUI не знайдено ні вручну, ні автопошуком за назвою \"gameover\".");
+    }
+
+    /// <summary>
+    /// Прив'язує клік restartButton до GameRestartManager.RestartGame() у коді.
+    /// GameRestartManager - синглтон-об'єкт СЦЕНИ, тому Inspector OnClick на
+    /// префабі гравця не може на нього посилатись.
+    /// </summary>
+    private void BindRestartButton()
+    {
+        if (restartButton == null) return;
+
+        GameRestartManager restartManager = FindObjectOfType<GameRestartManager>();
+        if (restartManager == null)
+        {
+            Debug.LogWarning("[PlayerDeathHandler] GameRestartManager не знайдено на сцені - кнопка New Game не буде працювати.");
+            return;
+        }
+
+        restartButton.onClick.RemoveListener(restartManager.RestartGame);
+        restartButton.onClick.AddListener(restartManager.RestartGame);
+    }
+
     void Start()
     {
         if (!photonView.IsMine) return;
 
-        // deathCamera має бути повністю вимкнена, доки гравець живий:
-        // і об'єкт (SetActive), і сам компонент Camera (enabled), і AudioListener,
-        // інакше або "2 audio listeners" одночасно, або вона просто лишається
-        // Camera.enabled = false назавжди й ніколи не почне рендерити, навіть
-        // коли пізніше увімкнемо об'єкт.
         if (deathCamera != null)
         {
             deathCamera.enabled = false;
@@ -125,24 +175,12 @@ public class PlayerDeathHandler : MonoBehaviourPun
         if (playerModel != null)
             playerModel.SetActive(false);
 
-        // Ховаємо ігровий HUD тільки на своєму клієнті (photonView.IsMine) -
-        // чужі копії цей UI все одно не показують (він і так вимкнений у
-        // PlayerRig для не-власника), тож RPC-виклик на всіх клієнтах
-        // достатньо просто пропустити для тих, кому нема що ховати.
         if (photonView.IsMine && gameplayUI != null)
         {
             foreach (var ui in gameplayUI)
                 if (ui != null) ui.SetActive(false);
         }
 
-        // Коли гравець (або всі гравці) помирає - острів має зникнути (акула
-        // його "з'їдає", з анімацією укусу), але не миттєво в той самий кадр,
-        // що й смерть гравця, а з невеликою затримкою (islandDevourStartDelay),
-        // щоб ці дві події не зливались візуально в одну. RPC_Die виконується
-        // на КОЖНОМУ клієнті, тому цю дію ініціює лише MasterClient
-        // (DevourWholeIslandNow() сам ще раз підстраховується перевіркою
-        // PhotonNetwork.IsMasterClient) - інакше кожен клієнт спробував би
-        // розіслати свій власний RPC.
         if (PhotonNetwork.IsMasterClient && sharkBiteController != null)
             StartCoroutine(DevourWholeIslandDelayedRoutine());
 
@@ -160,9 +198,6 @@ public class PlayerDeathHandler : MonoBehaviourPun
 
             if (deathCamera != null)
             {
-                // ГОЛОВНИЙ ФІКС: SetActive(true) вмикає ОБ'ЄКТ, але не сам
-                // компонент Camera, якщо в нього окремо стояло enabled = false.
-                // Вмикаємо обидва явно.
                 deathCamera.gameObject.SetActive(true);
                 deathCamera.enabled = true;
 
@@ -182,9 +217,6 @@ public class PlayerDeathHandler : MonoBehaviourPun
         if (gameOverUI != null)
             gameOverUI.SetActive(true);
 
-        // ФІКС: без цього курсор лишається заблокованим і невидимим
-        // (з FirstPersonCamera.Start()), і гравець фізично не може
-        // клікнути по кнопках Game Over UI.
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
