@@ -1164,7 +1164,7 @@ MonoBehaviour:
   - 3
   - 4
   - 5
-  likedSpeciesCount: 2
+  likedSpeciesCount: 3
   likeTriggerName: Like
   dislikeTriggerName: Dislike
   reactionDelay: 1.5
