@@ -2,6 +2,7 @@ using System.Collections;
 using Photon.Pun;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Обробляє "смерть" гравця (напр. акула з'їла) БЕЗ переходу в іншу сцену:
@@ -46,6 +47,13 @@ public class PlayerDeathHandler : MonoBehaviourPun
     [Tooltip("Кнопка \"New Game\" усередині gameOverUI. Клік прив'язується В КОДІ до GameRestartManager, знайденого на сцені - бо GameRestartManager є ОБ'ЄКТОМ СЦЕНИ, і Inspector-посилання на нього на префабі гравця завжди обнулиться після PhotonNetwork.Instantiate.")]
     public Button restartButton;
 
+    [Header("Кнопка \"Меню\"")]
+    [Tooltip("Кнопка \"Меню\" усередині gameOverUI. За кліком гравець виходить з Photon-кімнати і завантажується сцена головного меню. Прив'язується в коді автоматично (Awake), як і restartButton.")]
+    public Button menuButton;
+
+    [Tooltip("Точна назва сцени головного меню (має бути додана в File -> Build Settings -> Scenes In Build).")]
+    [SerializeField] private string menuSceneName = "Menu";
+
     [Header("Острів (фінальний ефект)")]
     [Tooltip("SharkBiteController зі сцени. Якщо не задано - шукається автоматично через FindObjectOfType.")]
     public SharkBiteController sharkBiteController;
@@ -80,6 +88,7 @@ public class PlayerDeathHandler : MonoBehaviourPun
             island.OnIslandDevoured += HandleIslandDevoured;
 
         BindRestartButton();
+        BindMenuButton();
     }
 
     void OnDestroy()
@@ -167,6 +176,50 @@ public class PlayerDeathHandler : MonoBehaviourPun
 
         restartButton.onClick.RemoveListener(restartManager.RestartGame);
         restartButton.onClick.AddListener(restartManager.RestartGame);
+    }
+
+    /// <summary>
+    /// Прив'язує клік menuButton до ReturnToMenu() у коді - для консистентності
+    /// з BindRestartButton (і щоб не залежати від Inspector OnClick, який
+    /// зазвичай теж злітає після PhotonNetwork.Instantiate префабу гравця).
+    /// </summary>
+    private void BindMenuButton()
+    {
+        if (menuButton == null) return;
+
+        menuButton.onClick.RemoveListener(ReturnToMenu);
+        menuButton.onClick.AddListener(ReturnToMenu);
+    }
+
+    /// <summary>
+    /// Викликається кнопкою "Меню" на Game Over екрані. Коректно виходить
+    /// з Photon-кімнати (щоб інші гравці бачили, що ти вийшов, і щоб не
+    /// лишався "привидом" у кімнаті) і лише ПІСЛЯ виходу завантажує сцену
+    /// головного меню.
+    /// </summary>
+    public void ReturnToMenu()
+    {
+        if (!photonView.IsMine) return;
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        if (menuButton != null)
+            menuButton.interactable = false;
+
+        StartCoroutine(ReturnToMenuRoutine());
+    }
+
+    private IEnumerator ReturnToMenuRoutine()
+    {
+        if (PhotonNetwork.InRoom)
+        {
+            PhotonNetwork.LeaveRoom();
+            while (PhotonNetwork.InRoom)
+                yield return null;
+        }
+
+        SceneManager.LoadScene(menuSceneName);
     }
 
     void Start()
