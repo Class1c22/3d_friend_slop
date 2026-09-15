@@ -1,6 +1,7 @@
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
+using UnityEngine.Playables;
 
 // Цей скрипт підключає гру до Photon Cloud (мережа + голос одночасно),
 // спавнить гравця в спільній кімнаті і коректно респавнить його після
@@ -30,6 +31,9 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     [Header("Точки спавну (можна лишити порожнім - тоді спавн у (0,0,0))")]
     [Tooltip("Якщо точок кілька - обирається випадкова. Якщо одна - завжди вона.")]
     [SerializeField] private Transform[] spawnPoints;
+
+    [Header("Синематика, що грається одразу після спавну ЛОКАЛЬНОГО гравця")]
+    [SerializeField] private PlayableDirector spawnCutscene;
 
     private void Awake()
     {
@@ -96,6 +100,19 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 
         GameObject player = PhotonNetwork.Instantiate(playerPrefabName, spawnPosition, spawnRotation);
         PhotonNetwork.LocalPlayer.TagObject = player;
+
+        // PhotonNetwork.Instantiate виконується локально для того клієнта,
+        // що спавниться - тому це саме той момент "гравець заспавнився",
+        // а не спавн чужих гравців по мережі.
+        if (spawnCutscene != null)
+        {
+            spawnCutscene.Play();
+        }
+
+        if (LoadingScreenController.Instance != null)
+        {
+            LoadingScreenController.Instance.OnPlayerSpawned();
+        }
     }
 
     public override void OnLeftRoom()
