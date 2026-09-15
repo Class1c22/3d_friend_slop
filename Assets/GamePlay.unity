@@ -1320,6 +1320,7 @@ MonoBehaviour:
   roomName: MainRoom
   spawnPoints:
   - {fileID: 427485214}
+  spawnCutscene: {fileID: 0}
 --- !u!4 &1515308343
 Transform:
   m_ObjectHideFlags: 0
@@ -1784,16 +1785,56 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 341869337875587125, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 604894379802104021, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
       propertyPath: m_Name
       value: mainhero
+      objectReference: {fileID: 0}
+    - target: {fileID: 604894379802104021, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088732591185412039, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2095544102627664152, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2118826009873745533, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_Color.a
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2194608853561337461, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
       propertyPath: sceneViewId
       value: 11
       objectReference: {fileID: 0}
+    - target: {fileID: 2246143808945133303, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4214882863527005342, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_Name
+      value: menu
+      objectReference: {fileID: 0}
+    - target: {fileID: 4765570580612253081, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5789672788682671973, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
       propertyPath: sceneViewId
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6163415399204461825, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6330824400519429523, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6471137458805590463, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
@@ -1828,9 +1869,17 @@ PrefabInstance:
       propertyPath: 'fishPrefabs.Array.data[4]'
       value: 
       objectReference: {fileID: 378317945}
+    - target: {fileID: 7918701128333758048, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8120895012706953863, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
       propertyPath: sceneViewId
       value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 8628582966384826699, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 9142226080773944321, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
       propertyPath: m_LocalPosition.x
