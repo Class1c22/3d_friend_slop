@@ -436,6 +436,8 @@ MonoBehaviour:
   - {fileID: 5467726027164593146}
   - {fileID: 2623548255038123243}
   restartButton: {fileID: 7985504901560152219}
+  menuButton: {fileID: 939476756717428239}
+  menuSceneName: Menu
   sharkBiteController: {fileID: 0}
   island: {fileID: 0}
   islandDevourStartDelay: 1

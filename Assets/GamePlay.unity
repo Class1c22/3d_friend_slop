@@ -908,6 +908,17 @@ SkinnedMeshRenderer:
   m_CorrespondingSourceObject: {fileID: -2105236087064383499, guid: 1b9ec6032d00c944d8fd0eca11452400, type: 3}
   m_PrefabInstance: {fileID: 436170794}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &846727238 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 939476756717428239, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+  m_PrefabInstance: {fileID: 1879628617843491791}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
 --- !u!1 &894591501
 GameObject:
   m_ObjectHideFlags: 0
@@ -1837,6 +1848,10 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 6471137458805590463, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
+      propertyPath: menuButton
+      value: 
+      objectReference: {fileID: 846727238}
     - target: {fileID: 6471137458805590463, guid: a62ab33fc6b85114cb9d5991393d5529, type: 3}
       propertyPath: sharkBiteController
       value: 
